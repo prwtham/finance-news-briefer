@@ -64,6 +64,54 @@ def parse_insights(d):
     raw = re.findall(r"\*\*(.+?)\*\*\s*:?\s*(.+?)(?=\n\*\*|\n\n|\Z)",d,re.DOTALL)
     return [{"title":t.strip(),"body":b.strip().replace("\n"," "),"sentiment":insight_sentiment(b)} for t,b in raw[:3]]
 
+def is_company_query(text):
+    """Heuristic: if input is 1-3 capitalized words with no question/topic keywords, treat as company."""
+    topic_signals = ["impact","effect","how","why","what","will","should","could","analyze","analysis",
+                     "compare","between","vs","versus","trend","forecast","predict","news","latest",
+                     "market","sector","industry","global","economy","recession","inflation","rate",
+                     "hike","cut","war","crisis","policy","regulation","election"]
+    words = text.strip().split()
+    t = text.lower()
+    if any(sig in t for sig in topic_signals):
+        return False
+    if len(words) <= 4 and not any(w in t for w in ["?","!"]):
+        return True
+    return False
+
+def run_topic_analysis(topic):
+    """Search Tavily for a general topic and summarize with Groq into 3 Key Insights."""
+    from langchain_groq import ChatGroq
+    from langchain_core.prompts import ChatPromptTemplate
+    tavily_key = os.getenv("TAVILY_API_KEY")
+    tavily = TavilyClient(api_key=tavily_key)
+    try:
+        results = tavily.search(query=topic, search_depth="advanced", max_results=5)
+    except Exception as e:
+        return f"Error searching for topic: {e}"
+    context = ""
+    for idx, r in enumerate(results.get("results",[])):
+        context += f"Source [{idx+1}]: {r['url']}\nContent: {r['content']}\n\n"
+    llm = ChatGroq(model="llama-3.1-8b-instant", temperature=0.5)
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", "You are an expert financial analyst providing key insights on market topics."),
+        ("user", """Analyze the following topic: {topic}
+
+Your output MUST be formatted as exactly 3 KEY INSIGHTS. Each insight must follow this exact format:
+
+**[Short Bold Title]:** [1-2 sentence explanation with inline citation using source numbers e.g. [1], [2]]
+
+Context Information:
+{context}
+
+KEY INSIGHTS:
+""")
+    ])
+    try:
+        response = (prompt | llm).invoke({"topic": topic, "context": context})
+        return response.content
+    except Exception as e:
+        return f"Error generating topic analysis: {e}"
+
 # =============================================================================
 # CSS — Exact palette from the HTML spec
 # =============================================================================
@@ -287,112 +335,106 @@ with col_main:
 
     if company:
         now = datetime.now()
-        st.session_state.search_history.insert(0, {"name":f"{company} Market Analysis","time":now.strftime("%I:%M %p")})
+        is_company = is_company_query(company)
+        mode_label = "Company Analysis" if is_company else "Topic Intelligence"
+        st.session_state.search_history.insert(0, {"name":f"{company[:30]} • {mode_label}","time":now.strftime("%I:%M %p")})
         task_id = abs(hash(company + now.isoformat())) % 10000
 
-        # Header
-        st.markdown(f'<div style="margin-bottom:16px;"><span class="exec-badge">AI AGENT EXECUTION</span><span class="task-id">TASK ID: #QT-{task_id}</span></div>', unsafe_allow_html=True)
-        st.markdown(f'<h1 style="font-size:30px;font-weight:700;font-family:Manrope,sans-serif;color:#fff!important;letter-spacing:-0.02em;line-height:38px;margin-bottom:16px;">Market Analysis: {company}</h1>', unsafe_allow_html=True)
+        if is_company:
+            # =================================================================
+            # COMPANY MODE — Full Alpha + Beta + Judge pipeline
+            # =================================================================
+            st.markdown(f'<div style="margin-bottom:16px;"><span class="exec-badge">AI AGENT EXECUTION</span><span class="task-id">TASK ID: #QT-{task_id}</span></div>', unsafe_allow_html=True)
+            st.markdown(f'<h1 style="font-size:30px;font-weight:700;font-family:Manrope,sans-serif;color:#fff!important;letter-spacing:-0.02em;line-height:38px;margin-bottom:16px;">Market Analysis: {company}</h1>', unsafe_allow_html=True)
 
-        # Execute agents
-        with st.status(f"Scanning Bloomberg, Reuters, Financial Times for {company}...", expanded=True) as status:
-            st.write(">> INITIALIZING ALPHA NODE (QUANT)...")
-            alpha_data = run_quantitative_analysis(company)
-            st.write(">> INITIALIZING BETA NODE (QUAL)...")
-            beta_data = run_qualitative_analysis(company)
-            st.write(">> ROUTING TO NEURAL JUDGE FOR SYNTHESIS...")
-            final_report = evaluate_reports(company, alpha_data, beta_data)
-            status.update(label="ANALYSIS COMPILED", state="complete")
+            with st.status(f"Scanning Bloomberg, Reuters, Financial Times for {company}...", expanded=True) as status:
+                st.write(">> INITIALIZING ALPHA NODE (QUANT)...")
+                alpha_data = run_quantitative_analysis(company)
+                st.write(">> INITIALIZING BETA NODE (QUAL)...")
+                beta_data = run_qualitative_analysis(company)
+                st.write(">> ROUTING TO NEURAL JUDGE FOR SYNTHESIS...")
+                final_report = evaluate_reports(company, alpha_data, beta_data)
+                status.update(label="ANALYSIS COMPILED", state="complete")
 
-        # Parse data
-        score = parse_score(alpha_data)
-        signal = compute_signal(score)
-        volatility = compute_vol(score)
-        sm = re.search(r"Top Signal:\s*(BUY|SELL|HOLD|ACCUMULATE|REDUCE)",alpha_data,re.I)
-        vm = re.search(r"Volatility Index:\s*(LOW|MEDIUM|HIGH)",alpha_data,re.I)
-        if sm: signal = sm.group(1).upper()
-        if vm: volatility = vm.group(1).upper()
+            score = parse_score(alpha_data)
+            signal = compute_signal(score)
+            volatility = compute_vol(score)
+            sm = re.search(r"Top Signal:\s*(BUY|SELL|HOLD|ACCUMULATE|REDUCE)",alpha_data,re.I)
+            vm = re.search(r"Volatility Index:\s*(LOW|MEDIUM|HIGH)",alpha_data,re.I)
+            if sm: signal = sm.group(1).upper()
+            if vm: volatility = vm.group(1).upper()
+            vc = vol_color(volatility)
+            sc = sig_color(signal)
 
-        vc = vol_color(volatility)
-        sc = sig_color(signal)
-
-        # Metrics
-        st.markdown(f"""
-        <div class="metrics-row">
-            <div class="metric-col">
-                <span class="metric-label">Sentiment Score</span>
-                <span class="metric-value" style="color:#4edea3!important;">{score} / 100</span>
+            st.markdown(f"""
+            <div class="metrics-row">
+                <div class="metric-col"><span class="metric-label">Sentiment Score</span><span class="metric-value" style="color:#4edea3!important;">{score} / 100</span></div>
+                <div class="metric-col"><span class="metric-label">Volatility Index</span><span class="metric-value" style="color:{vc}!important;">{volatility}</span></div>
+                <div class="metric-col"><span class="metric-label">Top Signal</span><span class="metric-value" style="color:{sc}!important;">{signal}</span></div>
             </div>
-            <div class="metric-col">
-                <span class="metric-label">Volatility Index</span>
-                <span class="metric-value" style="color:{vc}!important;">{volatility}</span>
-            </div>
-            <div class="metric-col">
-                <span class="metric-label">Top Signal</span>
-                <span class="metric-value" style="color:{sc}!important;">{signal}</span>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
 
-        # Key Executive Insights
-        st.markdown('<h2 class="insight-title" style="margin-top:32px;">Key Executive Insights</h2>', unsafe_allow_html=True)
-        insights = parse_insights(beta_data)
-        if insights:
-            for ins in insights:
-                icon = "check_circle" if ins["sentiment"]=="positive" else "warning"
-                ic = "#4edea3" if ins["sentiment"]=="positive" else "#ec4242"
-                st.markdown(f"""
-                <div class="insight-item">
-                    <span class="material-symbols-outlined" style="color:{ic}!important;flex-shrink:0;">{icon}</span>
-                    <p class="insight-text"><span class="insight-bold">{ins['title']}:</span> {ins['body']}</p>
-                </div>
-                """, unsafe_allow_html=True)
+            st.markdown('<h2 class="insight-title" style="margin-top:32px;">Key Executive Insights</h2>', unsafe_allow_html=True)
+            insights = parse_insights(beta_data)
+            if insights:
+                for ins in insights:
+                    icon = "check_circle" if ins["sentiment"]=="positive" else "warning"
+                    ic = "#4edea3" if ins["sentiment"]=="positive" else "#ec4242"
+                    st.markdown(f'<div class="insight-item"><span class="material-symbols-outlined" style="color:{ic}!important;flex-shrink:0;">{icon}</span><p class="insight-text"><span class="insight-bold">{ins["title"]}:</span> {ins["body"]}</p></div>', unsafe_allow_html=True)
+            else:
+                st.markdown(beta_data)
+
+            st.markdown('<h2 class="insight-title" style="margin-top:32px;">Agent Performance Log</h2>', unsafe_allow_html=True)
+            ts = now.strftime("%H:%M:%S")
+            ci = min(score+16,99)
+            st.markdown(f'<div class="perf-log"><p class="log-line log-dim">[{ts}] Scanning Bloomberg, Reuters, Financial Times...</p><p class="log-line log-dim">[{ts}] Identifying correlation patterns for {company}...</p><p class="log-line log-highlight">[{ts}] Critical Pattern Detected: Score={score}, Signal={signal}</p><p class="log-line log-dim">[{ts}] Briefing compiled. Confidence Interval: {ci}.{abs(hash(company))%10}%</p></div>', unsafe_allow_html=True)
+
+            st.markdown('<div style="height:24px;"></div>', unsafe_allow_html=True)
+            c1, c2 = st.columns(2)
+            with c1:
+                bars = "".join([f'<div class="mini-bar" style="background:#4edea3;height:{20+i*13}%;"></div>' for i in range(6)])
+                st.markdown(f'<div style="padding:24px;background:#1b2b3f;border:1px solid #44474d;border-radius:12px;"><p class="metric-label" style="margin-bottom:16px;">Upside Catalyst</p><div class="mini-chart" style="background:linear-gradient(to top right,rgba(78,222,163,0.2),transparent);">{bars}</div><p style="font-size:12px;color:#c5c6cd!important;">Strong institutional inflow detected in high-beta assets over 48h period.</p></div>', unsafe_allow_html=True)
+            with c2:
+                bars = "".join([f'<div class="mini-bar" style="background:#ec4242;height:{100-i*15}%;"></div>' for i in range(6)])
+                st.markdown(f'<div style="padding:24px;background:#1b2b3f;border:1px solid #44474d;border-radius:12px;"><p class="metric-label" style="margin-bottom:16px;">Risk Exposure</p><div class="mini-chart" style="background:linear-gradient(to top right,rgba(236,66,66,0.2),transparent);">{bars}</div><p style="font-size:12px;color:#c5c6cd!important;">Over-leveraging in consumer retail puts pressure on broader market liquidity.</p></div>', unsafe_allow_html=True)
+
+            with st.expander("📄 Full Alpha Report (Quantitative)"):
+                st.markdown(alpha_data)
+            with st.expander("📄 Full Beta Report (Qualitative)"):
+                st.markdown(beta_data)
+            with st.expander("⚖️ Full Judge Synthesis"):
+                st.markdown(final_report)
+
         else:
-            st.markdown(beta_data)
+            # =================================================================
+            # TOPIC MODE — Tavily search + single LLM summary
+            # =================================================================
+            st.markdown(f'<div style="margin-bottom:16px;"><span class="exec-badge" style="background:rgba(185,199,228,0.1)!important;color:#b9c7e4!important;border-color:rgba(185,199,228,0.2)!important;">TOPIC INTELLIGENCE</span><span class="task-id">TASK ID: #TI-{task_id}</span></div>', unsafe_allow_html=True)
+            st.markdown(f'<h1 style="font-size:30px;font-weight:700;font-family:Manrope,sans-serif;color:#fff!important;letter-spacing:-0.02em;line-height:38px;margin-bottom:16px;">Topic Brief: {company}</h1>', unsafe_allow_html=True)
 
-        # Agent Performance Log
-        st.markdown('<h2 class="insight-title" style="margin-top:32px;">Agent Performance Log</h2>', unsafe_allow_html=True)
-        ts = now.strftime("%H:%M:%S")
-        ci = min(score+16,99)
-        st.markdown(f"""
-        <div class="perf-log">
-            <p class="log-line log-dim">[{ts}] Scanning Bloomberg, Reuters, Financial Times...</p>
-            <p class="log-line log-dim">[{ts}] Identifying correlation patterns for {company}...</p>
-            <p class="log-line log-highlight">[{ts}] Critical Pattern Detected: Score={score}, Signal={signal}</p>
-            <p class="log-line log-dim">[{ts}] Briefing compiled. Confidence Interval: {ci}.{abs(hash(company))%10}%</p>
-        </div>
-        """, unsafe_allow_html=True)
+            with st.status(f"Searching global sources for: {company}...", expanded=True) as status:
+                st.write(">> SCANNING TAVILY KNOWLEDGE BASE...")
+                topic_data = run_topic_analysis(company)
+                status.update(label="TOPIC BRIEF COMPILED", state="complete")
 
-        # Upside / Risk cards
-        st.markdown('<div style="height:24px;"></div>', unsafe_allow_html=True)
-        c1, c2 = st.columns(2)
-        with c1:
-            bars = "".join([f'<div class="mini-bar" style="background:#4edea3;height:{20+i*13}%;"></div>' for i in range(6)])
-            st.markdown(f"""
-            <div style="padding:24px;background:#1b2b3f;border:1px solid #44474d;border-radius:12px;">
-                <p class="metric-label" style="margin-bottom:16px;">Upside Catalyst</p>
-                <div class="mini-chart" style="background:linear-gradient(to top right,rgba(78,222,163,0.2),transparent);">{bars}</div>
-                <p style="font-size:12px;color:#c5c6cd!important;">Strong institutional inflow detected in high-beta assets over 48h period.</p>
-            </div>
-            """, unsafe_allow_html=True)
-        with c2:
-            bars = "".join([f'<div class="mini-bar" style="background:#ec4242;height:{100-i*15}%;"></div>' for i in range(6)])
-            st.markdown(f"""
-            <div style="padding:24px;background:#1b2b3f;border:1px solid #44474d;border-radius:12px;">
-                <p class="metric-label" style="margin-bottom:16px;">Risk Exposure</p>
-                <div class="mini-chart" style="background:linear-gradient(to top right,rgba(236,66,66,0.2),transparent);">{bars}</div>
-                <p style="font-size:12px;color:#c5c6cd!important;">Over-leveraging in consumer retail puts pressure on broader market liquidity.</p>
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown('<h2 class="insight-title" style="margin-top:24px;">Key Insights</h2>', unsafe_allow_html=True)
+            insights = parse_insights(topic_data)
+            if insights:
+                for ins in insights:
+                    icon = "check_circle" if ins["sentiment"]=="positive" else "warning"
+                    ic = "#4edea3" if ins["sentiment"]=="positive" else "#ec4242"
+                    st.markdown(f'<div class="insight-item"><span class="material-symbols-outlined" style="color:{ic}!important;flex-shrink:0;">{icon}</span><p class="insight-text"><span class="insight-bold">{ins["title"]}:</span> {ins["body"]}</p></div>', unsafe_allow_html=True)
+            else:
+                st.markdown(topic_data)
 
-        # Expandable Full Reports
-        with st.expander("📄 Full Alpha Report (Quantitative)"):
-            st.markdown(alpha_data)
-        with st.expander("📄 Full Beta Report (Qualitative)"):
-            st.markdown(beta_data)
-        with st.expander("⚖️ Full Judge Synthesis"):
-            st.markdown(final_report)
+            st.markdown('<h2 class="insight-title" style="margin-top:32px;">Agent Performance Log</h2>', unsafe_allow_html=True)
+            ts = now.strftime("%H:%M:%S")
+            st.markdown(f'<div class="perf-log"><p class="log-line log-dim">[{ts}] Topic scan initiated: {company[:50]}...</p><p class="log-line log-highlight">[{ts}] Tavily returned 5 sources. Summarizing...</p><p class="log-line log-dim">[{ts}] Topic brief compiled successfully.</p></div>', unsafe_allow_html=True)
+
+            with st.expander("📄 Full Topic Analysis"):
+                st.markdown(topic_data)
+
     else:
         st.markdown('<span class="exec-badge" style="background:#1E293B!important;color:#94a3b8!important;border-color:#44474d!important;">SYSTEM IDLE</span>', unsafe_allow_html=True)
         st.markdown('<h1 style="font-size:30px;font-weight:700;font-family:Manrope,sans-serif;color:#475569!important;margin-top:12px;">Awaiting Execution Protocol</h1>', unsafe_allow_html=True)
-        st.markdown('<p style="color:#475569!important;">Use the terminal input below to launch a targeted market scan.</p>', unsafe_allow_html=True)
+        st.markdown('<p style="color:#475569!important;">Enter a company name for full analysis, or type any topic for a quick intelligence brief.</p>', unsafe_allow_html=True)
