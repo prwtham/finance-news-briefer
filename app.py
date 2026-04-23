@@ -362,11 +362,9 @@ with st.sidebar:
 # =============================================================================
 # TOP NAV (functional tabs)
 # =============================================================================
-nav_cols = st.columns([2,1,1,1,6,1,1])
-with nav_cols[0]:
-    st.markdown('<span class="topnav-brand">QUANTUM AI</span>', unsafe_allow_html=True)
+nav_cols = st.columns([1,1,1,8])
 for idx, view_name in enumerate(["Overview","Forecasting","Sentiment"]):
-    with nav_cols[idx+1]:
+    with nav_cols[idx]:
         is_active = st.session_state.active_view == view_name
         style = "color:#4edea3!important;font-weight:700;" if is_active else "color:#64748b!important;"
         if st.button(view_name, key=f"view_{view_name}", use_container_width=True):
@@ -385,9 +383,9 @@ for i,(lbl,d) in enumerate(ticker_data.items()):
 st.markdown(f'<div class="ticker-row">{ticker_html}</div>', unsafe_allow_html=True)
 
 # =============================================================================
-# 2-COLUMN LAYOUT
+# 3-COLUMN LAYOUT (Main, Spacer, News)
 # =============================================================================
-col_main, col_news = st.columns([7, 3])
+col_main, col_spacer, col_news = st.columns([6.5, 0.5, 3])
 
 # --- RIGHT: Trending News ---
 with col_news:
@@ -416,6 +414,7 @@ with col_news:
 
 # --- CENTER: Main Terminal ---
 with col_main:
+    st.markdown("<div style='margin-top: 32px;'></div>", unsafe_allow_html=True)
     company = st.chat_input("Analyze the impact of a company's market position...")
 
     # =========================================================================
