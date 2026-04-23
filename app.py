@@ -346,10 +346,9 @@ with st.sidebar:
 
     # Navigation tabs
     st.markdown('<p class="section-label" style="padding:0 24px; margin-bottom: 8px;">Navigation</p>', unsafe_allow_html=True)
-    for view_name in ["Overview", "Forecasting", "Sentiment"]:
-        if st.sidebar.button(f" {view_name} ", key=f"nav_{view_name}", use_container_width=True):
-            st.session_state.active_view = view_name
-            st.rerun()
+    if st.sidebar.button("  New Analysis", key="nav_new", use_container_width=True):
+        st.session_state.active_view = "Overview"
+        st.rerun()
 
     st.markdown('<p class="section-label" style="padding:24px 24px 8px 24px;">Research History</p>', unsafe_allow_html=True)
     if "search_history" not in st.session_state:
@@ -359,6 +358,20 @@ with st.sidebar:
         st.markdown(f'<div class="hist-card {cls}" style="margin: 0 24px 8px 24px;"><p class="hist-title">{item["name"][:40]}</p><span class="hist-meta">{item["time"]} • Deep Scan</span></div>', unsafe_allow_html=True)
     if not st.session_state.search_history:
         st.markdown('<p style="color:#64748b!important;font-size:12px;padding:0 24px;">No research yet.</p>', unsafe_allow_html=True)
+
+# =============================================================================
+# TOP NAV (functional tabs)
+# =============================================================================
+nav_cols = st.columns([2,1,1,1,6,1,1])
+with nav_cols[0]:
+    st.markdown('<span class="topnav-brand">QUANTUM AI</span>', unsafe_allow_html=True)
+for idx, view_name in enumerate(["Overview","Forecasting","Sentiment"]):
+    with nav_cols[idx+1]:
+        is_active = st.session_state.active_view == view_name
+        style = "color:#4edea3!important;font-weight:700;" if is_active else "color:#64748b!important;"
+        if st.button(view_name, key=f"view_{view_name}", use_container_width=True):
+            st.session_state.active_view = view_name
+            st.rerun()
 
 # =============================================================================
 # TICKER TAPE (REAL-TIME)
