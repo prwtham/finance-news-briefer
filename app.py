@@ -361,6 +361,16 @@ with st.sidebar:
         st.markdown('<p style="color:#64748b!important;font-size:12px;padding:0 24px;">No research yet.</p>', unsafe_allow_html=True)
 
 # =============================================================================
+# MAIN HEADER
+# =============================================================================
+st.markdown("""
+<div style="margin-bottom: 24px; margin-top: -16px;">
+    <h1 style="font-family: 'Manrope', sans-serif; font-size: 42px; font-weight: 900; margin: 0; padding: 0; background: linear-gradient(90deg, #4edea3, #b9c7e4); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Financial News Briefer</h1>
+    <p style="color: #64748b!important; font-size: 14px; margin: 4px 0 0 0; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase;">Intelligent Multi-Agent Terminal</p>
+</div>
+""", unsafe_allow_html=True)
+
+# =============================================================================
 # TOP NAV (functional tabs)
 # =============================================================================
 nav_cols = st.columns([1,1,1,8])
