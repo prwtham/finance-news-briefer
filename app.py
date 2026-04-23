@@ -1,5 +1,5 @@
 import streamlit as st
-import re, os
+import re, os, requests
 import yfinance as yf
 from datetime import datetime
 from dotenv import load_dotenv
@@ -46,6 +46,36 @@ def fetch_trending_news():
             items.append({"title":t,"url":x.get("url","#"),"category":cat})
         return items
     except: return []
+
+@st.cache_data(ttl=600)
+def fetch_pexels_image(query):
+    """Fetch a single landscape image URL from Pexels for a given search query."""
+    key = os.getenv("PEXELS_API_KEY")
+    if not key: return None
+    try:
+        resp = requests.get(
+            "https://api.pexels.com/v1/search",
+            headers={"Authorization": key},
+            params={"query": query, "per_page": 1, "orientation": "landscape"},
+            timeout=5
+        )
+        if resp.status_code == 200:
+            photos = resp.json().get("photos", [])
+            if photos:
+                return photos[0]["src"]["landscape"]
+    except: pass
+    return None
+
+def get_image_query(category):
+    """Map news category to a Pexels search query for relevant imagery."""
+    mapping = {
+        "SEMICONDUCTORS": "semiconductor chip factory technology",
+        "ENERGY": "electric power grid energy station",
+        "MACRO": "central bank building finance",
+        "CRYPTO": "cryptocurrency bitcoin digital",
+        "MARKETS": "stock market trading finance"
+    }
+    return mapping.get(category, "financial markets")
 
 def get_color(v): return "#4edea3" if v>0 else "#ec4242" if v<0 else "#c5c6cd"
 def get_arrow(v): return "arrow_drop_up" if v>0 else "arrow_drop_down" if v<0 else "remove"
@@ -303,18 +333,17 @@ with col_hist:
 # --- RIGHT: Trending News ---
 with col_news:
     st.markdown('<p class="section-label">Trending News</p>', unsafe_allow_html=True)
-    # News images (placeholder gradients since external image APIs are unreliable)
-    news_gradients = [
-        "linear-gradient(135deg,#0a192f,#112240,#4edea3)",
-        "linear-gradient(135deg,#0a192f,#3c0003,#ec4242)",
-        "linear-gradient(135deg,#0a192f,#26364a,#b9c7e4)"
-    ]
     for i, news in enumerate(trending_news[:3]):
         cc = cat_color(news["category"])
-        grad = news_gradients[i % len(news_gradients)]
+        img_url = fetch_pexels_image(get_image_query(news["category"]))
+        if img_url:
+            img_html = f'<img class="news-img" src="{img_url}" alt="{news["category"]}" />'
+        else:
+            fallback_grads = ["linear-gradient(135deg,#0a192f,#112240,#4edea3)","linear-gradient(135deg,#0a192f,#3c0003,#ec4242)","linear-gradient(135deg,#0a192f,#26364a,#b9c7e4)"]
+            img_html = f'<div style="width:100%;height:96px;border-radius:8px;margin-bottom:12px;background:{fallback_grads[i%3]};"></div>'
         st.markdown(f"""
         <div class="news-card">
-            <div style="width:100%;height:96px;border-radius:8px;margin-bottom:12px;background:{grad};"></div>
+            {img_html}
             <span class="news-cat" style="color:{cc}!important;">{news["category"]}</span>
             <div class="news-title">{news["title"][:65]}</div>
             <div class="news-meta">Source</div>
