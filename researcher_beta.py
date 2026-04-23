@@ -20,7 +20,7 @@ def run_qualitative_analysis(company_name: str) -> str:
     tavily = TavilyClient(api_key=tavily_api_key)
     
     # 2. Perform the search
-    query = f"{company_name} latest news market sentiment, CEO quotes, competitive landscape, Company Logo URL, CEO official photo URL"
+    query = f"{company_name} latest news market sentiment, CEO quotes, competitive landscape"
     print(f"[*] Searching Tavily for query: '{query}'")
     try:
         search_result = tavily.search(query=query, search_depth="advanced", max_results=5)
@@ -49,10 +49,6 @@ Focus specifically on finding and reporting:
 1. Market sentiment
 2. CEO quotes
 3. Competitive landscape news
-
-If you find a Company Logo URL and a CEO official photo URL in the sources, you MUST include them formatted exactly as:
-![Logo](URL)
-![CEO](URL)
 
 Provide a highly structured summary of your findings. 
 You MUST include inline citations using the Source numbers (e.g., [1], [2]) provided in the context to back up your claims.
