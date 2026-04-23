@@ -73,58 +73,23 @@ def fetch_pexels_image(query):
     return None
 
 @st.cache_data(ttl=600)
-def fetch_company_image(company_name):
-    """Fetch a company-related image from Pexels (building, office, branding)."""
-    key = os.getenv("PEXELS_API_KEY")
-    if not key: return None
-    try:
-        resp = requests.get(
-            "https://api.pexels.com/v1/search",
-            headers={"Authorization": key},
-            params={"query": f"{company_name} company office building", "per_page": 1, "orientation": "landscape", "size": "small"},
-            timeout=5
-        )
-        if resp.status_code == 200:
-            photos = resp.json().get("photos", [])
-            if photos:
-                p = photos[0]
-                return {
-                    "url": p["src"]["small"],
-                    "photographer": p.get("photographer", ""),
-                    "photo_url": p.get("url", ""),
-                }
-    except: pass
-    # Fallback: try Clearbit autocomplete for a real logo
-    try:
-        resp = requests.get(
-            f"https://autocomplete.clearbit.com/v1/companies/suggest?query={company_name}",
-            timeout=3
-        )
-        if resp.status_code == 200:
-            suggestions = resp.json()
-            if suggestions:
-                logo = suggestions[0].get("logo", "")
-                if logo:
-                    return {"url": logo, "photographer": "", "photo_url": ""}
-    except: pass
-    return None
-
-def get_news_image_query(title):
-    """Extract 2-3 keywords from a headline for a unique Pexels image search."""
-    stop = {"the","a","an","is","are","to","for","of","in","on","and","or","as","by","at","from","with","its","it","that","this","how","why","what","vs","amid"}
-    words = [w for w in re.sub(r'[^a-zA-Z\s]','',title).split() if w.lower() not in stop and len(w)>2]
-    return " ".join(words[:3]) if words else "financial markets"
-
-@st.cache_data(ttl=600)
-def fetch_unsplash_image(query):
-    """Fetch an image from Unsplash for qualitative context."""
+def fetch_unsplash_image(company_name, image_type="logo"):
+    """Fetch an image from Unsplash. Type can be 'logo' or 'graph'."""
     key = os.getenv("UNSPLASH_API_KEY")
     if not key: return None
+    
+    if image_type == "logo":
+        query = f"{company_name} logo brand"
+        orientation = "squarish"
+    else:
+        query = f"{company_name} stock market chart graph"
+        orientation = "landscape"
+        
     try:
         resp = requests.get(
             "https://api.unsplash.com/search/photos",
             headers={"Authorization": f"Client-ID {key}"},
-            params={"query": f"{query} office business corporate", "per_page": 1, "orientation": "landscape"},
+            params={"query": query, "per_page": 1, "orientation": orientation},
             timeout=5
         )
         if resp.status_code == 200:
@@ -438,14 +403,6 @@ with col_news:
     # Pexels attribution (required by API terms)
     st.markdown('<div style="text-align:center;margin-top:12px;"><a href="https://www.pexels.com" target="_blank"><img src="https://images.pexels.com/lib/api/pexels-white.png" style="width:80px;opacity:0.5;" /></a></div>', unsafe_allow_html=True)
 
-    st.markdown("""
-    <div class="portfolio-alert">
-        <div class="portfolio-title">Portfolio Alert</div>
-        <p class="portfolio-text">Your exposure to 'Technology' exceeds target by 4.2%. Consider rebalancing during the afternoon session.</p>
-        <div class="portfolio-btn">View Details</div>
-    </div>
-    """, unsafe_allow_html=True)
-
 # --- CENTER: Main Terminal ---
 with col_main:
     company = st.chat_input("Analyze the impact of a company's market position...")
@@ -544,8 +501,8 @@ with col_main:
             # =================================================================
             st.markdown(f'<div style="margin-bottom:16px;"><span class="exec-badge">AI AGENT EXECUTION</span><span class="task-id">TASK ID: #QT-{task_id}</span></div>', unsafe_allow_html=True)
 
-            # Company Image from Pexels (or Clearbit logo fallback)
-            company_img = fetch_company_image(company)
+            # Company Image from Unsplash
+            company_img = fetch_unsplash_image(company, "logo")
             initial = company.strip()[0].upper()
             if company_img:
                 logo_html = f'<img class="company-logo" src="{company_img["url"]}" alt="{company}" />'
@@ -590,11 +547,6 @@ with col_main:
             else:
                 st.markdown(beta_data)
 
-            st.markdown('<h2 class="insight-title" style="margin-top:32px;">Agent Performance Log</h2>', unsafe_allow_html=True)
-            ts = now.strftime("%H:%M:%S")
-            ci = min(score+16,99)
-            st.markdown(f'<div class="perf-log"><p class="log-line log-dim">[{ts}] Scanning Bloomberg, Reuters, Financial Times...</p><p class="log-line log-dim">[{ts}] Identifying correlation patterns for {company}...</p><p class="log-line log-highlight">[{ts}] Critical Pattern Detected: Score={score}, Signal={signal}</p><p class="log-line log-dim">[{ts}] Briefing compiled. Confidence Interval: {ci}.{abs(hash(company))%10}%</p></div>', unsafe_allow_html=True)
-
             st.markdown('<div style="height:24px;"></div>', unsafe_allow_html=True)
             c1, c2 = st.columns(2)
             with c1:
@@ -607,10 +559,11 @@ with col_main:
             with st.expander("📄 Full Alpha Report (Quantitative)"):
                 st.markdown(alpha_data)
             with st.expander("📄 Full Beta Report (Qualitative)"):
-                unsplash_img = fetch_unsplash_image(company)
+                unsplash_img = fetch_unsplash_image(company, "graph")
                 if unsplash_img:
                     st.markdown(f'''
                     <div style="margin-bottom: 24px;">
+                        <h3 style="color:#fff; font-size: 16px; margin: 0 0 16px 0;">Market Graphs & Charts</h3>
                         <img src="{unsplash_img["url"]}" style="width:100%; max-height: 250px; object-fit: cover; border-radius: 8px; margin-bottom: 8px;" />
                         <p style="color:#64748b; font-size:12px; text-align:right;">Photo by <a href="{unsplash_img["photo_url"]}" target="_blank" style="color:#64748b;">{unsplash_img["photographer"]}</a> on Unsplash</p>
                     </div>
@@ -652,10 +605,6 @@ with col_main:
                     st.markdown(f'<div class="insight-item"><span class="material-symbols-outlined" style="color:{ic}!important;flex-shrink:0;">{icon}</span><p class="insight-text"><span class="insight-bold">{ins["title"]}:</span> {ins["body"]}</p></div>', unsafe_allow_html=True)
             else:
                 st.markdown(topic_data)
-
-            st.markdown('<h2 class="insight-title" style="margin-top:32px;">Agent Performance Log</h2>', unsafe_allow_html=True)
-            ts = now.strftime("%H:%M:%S")
-            st.markdown(f'<div class="perf-log"><p class="log-line log-dim">[{ts}] Topic scan initiated: {company[:50]}...</p><p class="log-line log-highlight">[{ts}] Tavily returned 5 sources. Summarizing...</p><p class="log-line log-dim">[{ts}] Topic brief compiled successfully.</p></div>', unsafe_allow_html=True)
 
             with st.expander("📄 Full Topic Analysis"):
                 st.markdown(topic_data)
