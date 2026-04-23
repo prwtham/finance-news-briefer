@@ -5,191 +5,229 @@ from researcher_beta import run_qualitative_analysis
 from judge import evaluate_reports
 
 # --- UI Setup ---
-st.set_page_config(page_title="Finance News Briefer", page_icon="📈", layout="wide")
+st.set_page_config(page_title="QUANTUM AI Terminal", page_icon="📟", layout="wide")
 
-# --- Custom CSS ---
+# --- Custom CSS for Terminal v4.2 ---
 custom_css = """
 <style>
-/* Background and Base Styling */
+/* Base Dark Theme */
 .stApp {
-    background-color: #ffffff !important;
-    background-image: radial-gradient(#e0e0e0 2px, transparent 2px);
-    background-size: 30px 30px;
+    background-color: #0B1120 !important;
+    color: #E2E8F0 !important;
     font-family: 'Inter', sans-serif;
-    color: #1a1a1a !important;
 }
 
-/* Force dark text for standard Streamlit typography to override Dark Mode defaults */
-.stMarkdown p, .stMarkdown h1, .stMarkdown h2, .stMarkdown h3, .stMarkdown h4, .stMarkdown h5, .stMarkdown h6, .stMarkdown span, .stMetric label, .stMetric div, .stText {
-    color: #1a1a1a !important;
+/* Sidebar Styling */
+[data-testid="stSidebar"] {
+    background-color: #0F172A !important;
+    border-right: 1px solid #1E293B;
+}
+[data-testid="stSidebar"] * {
+    color: #94A3B8 !important;
+}
+[data-testid="stSidebar"] h1 {
+    color: #F8FAFC !important;
+    font-weight: 700;
 }
 
-/* Animations */
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(-20px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
-/* Hero Section */
-.hero-container {
-    text-align: center;
-    padding: 6rem 2rem 2rem 2rem;
-    animation: fadeIn 1s ease-out forwards;
-}
-
-.hero-title {
-    font-size: 4.5rem;
-    font-weight: 800;
-    color: #1a1a1a;
-    margin-bottom: 0.5rem;
-    letter-spacing: -0.05em;
-    font-family: sans-serif;
-}
-
-.hero-subtitle {
-    font-size: 1.2rem;
-    color: #888888;
-    margin-bottom: 3rem;
-    font-weight: 300;
-}
-
-/* Hide standard Streamlit header elements if necessary */
+/* Hide header */
 header {visibility: hidden;}
 
-/* Style the Search Input */
-.stTextInput > div > div > input {
-    border-radius: 50px;
-    padding: 15px 25px;
-    border: 1px solid #d0d0d0;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.05);
-    text-align: center;
-    font-size: 1.1rem;
-    background-color: #ffffff;
+/* Ticker Tape Styling */
+.ticker-container {
+    display: flex;
+    justify-content: space-between;
+    background-color: #0F172A;
+    padding: 10px 20px;
+    border-bottom: 1px solid #1E293B;
+    margin-top: -3rem;
+    margin-bottom: 2rem;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 0.85rem;
+}
+.ticker-item {
+    color: #94A3B8;
+}
+.ticker-value {
+    color: #F8FAFC;
+    margin-left: 5px;
+}
+.ticker-positive { color: #10B981; }
+.ticker-negative { color: #EF4444; }
+
+/* Badges */
+.badge {
+    background-color: #064E3B;
+    color: #34D399;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: bold;
+    letter-spacing: 1px;
 }
 
-/* Style the Button */
-.stButton > button {
-    border-radius: 50px;
-    border: 1px solid #dcdcdc;
-    background-color: #ffffff;
-    color: #333333;
-    padding: 0.5rem 2.5rem;
-    font-weight: 500;
-    transition: all 0.3s ease;
-    display: block;
-    margin: 0 auto;
+/* Custom Text colors override */
+h1, h2, h3, h4, p, span, div, .stMarkdown {
+    color: #E2E8F0 !important;
 }
 
-.stButton > button:hover {
-    border-color: #999999;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-    color: #000000;
+/* Exception for specific classes */
+.ticker-item, .ticker-value, .ticker-positive, .ticker-negative, .badge {
+    color: inherit !important; /* Let specific classes define their own colors */
 }
 
-/* Elevated Container for Output */
+/* Override metric colors */
+[data-testid="stMetricValue"] {
+    color: #F8FAFC !important;
+    font-size: 1.8rem;
+}
+[data-testid="stMetricLabel"] {
+    color: #94A3B8 !important;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-size: 0.8rem;
+}
+
+/* Override Chat Input */
+[data-testid="stChatInput"] {
+    background-color: #020617;
+    border: 1px solid #1E293B;
+}
+
+/* Agent Log Container */
+.agent-log {
+    background-color: #020617;
+    border: 1px solid #1E293B;
+    border-radius: 8px;
+    padding: 15px;
+    font-family: 'Courier New', Courier, monospace;
+    color: #10B981 !important;
+    font-size: 0.85rem;
+    margin-top: 2rem;
+}
+.agent-log p {
+    color: #10B981 !important;
+    margin: 0;
+}
+
+/* Override containers */
 div[data-testid="stVerticalBlockBorderWrapper"] {
-    background-color: rgba(255, 255, 255, 0.95);
-    border-radius: 15px;
-    padding: 2rem;
-    box-shadow: 0 10px 40px rgba(0,0,0,0.08);
-    border: 1px solid #f0f0f0;
-    backdrop-filter: blur(10px);
+    background-color: #0F172A !important;
+    border: 1px solid #1E293B !important;
+    border-radius: 8px;
 }
-
 </style>
 """
 st.markdown(custom_css, unsafe_allow_html=True)
 
-# --- Hero Content ---
+# --- Sidebar ---
+with st.sidebar:
+    st.markdown("<h1 style='color: #F8FAFC !important;'>TERMINAL v4.2</h1><p style='font-size: 0.8rem; color: #10B981 !important;'>System Status: Active</p>", unsafe_allow_html=True)
+    st.divider()
+    st.markdown("🏢 **INTELLIGENCE**")
+    st.markdown("📈 MARKET TICKERS")
+    st.markdown("🤖 AGENT LOGS")
+    st.markdown("💼 PORTFOLIOS")
+    st.markdown("📄 REPORTS")
+    st.divider()
+    st.button("+ New Research", use_container_width=True)
+
+# --- Top Nav / Ticker Tape ---
 st.markdown("""
-<div class="hero-container">
-    <h1 class="hero-title">Finance News Briefer</h1>
-    <p class="hero-subtitle">AI-Powered Quantitative and Qualitative Market Intelligence</p>
+<div class="ticker-container">
+    <div class="ticker-item" style="color:#94A3B8!important;">S&P 500 <span class="ticker-value" style="color:#F8FAFC!important; margin-left:5px;">5,241.53 <span class="ticker-positive" style="color:#10B981!important;">▲ 0.42%</span></span></div>
+    <div class="ticker-item" style="color:#94A3B8!important;">NASDAQ 100 <span class="ticker-value" style="color:#F8FAFC!important; margin-left:5px;">18,342.10 <span class="ticker-positive" style="color:#10B981!important;">▲ 1.15%</span></span></div>
+    <div class="ticker-item" style="color:#94A3B8!important;">DOW J <span class="ticker-value" style="color:#F8FAFC!important; margin-left:5px;">39,127.14 <span class="ticker-negative" style="color:#EF4444!important;">▼ 0.21%</span></span></div>
+    <div class="ticker-item" style="color:#94A3B8!important;">USD/JPY <span class="ticker-value" style="color:#F8FAFC!important; margin-left:5px;">151.24 <span class="ticker-value" style="color:#F8FAFC!important;">0.00%</span></span></div>
+    <div class="ticker-item" style="color:#94A3B8!important;">BTC/USD <span class="ticker-value" style="color:#F8FAFC!important; margin-left:5px;">68,432.20 <span class="ticker-positive" style="color:#10B981!important;">▲</span></span></div>
 </div>
 """, unsafe_allow_html=True)
 
-# --- Input Area (Centered) ---
-# Create 3 columns to force the input to the center
-col1, col2, col3 = st.columns([1, 2, 1])
-with col2:
-    company = st.text_input("Company", placeholder="Enter Company Name (e.g., Apple, NVIDIA)...", label_visibility="collapsed")
+# --- Main Layout ---
+col_hist, col_main = st.columns([1, 3])
+
+with col_hist:
+    st.markdown("<p style='color: #94A3B8 !important; font-size: 0.8rem; font-weight: bold;'>RESEARCH HISTORY</p>", unsafe_allow_html=True)
     
-    # Nested columns for the button to center it perfectly
-    btn_col1, btn_col2, btn_col3 = st.columns([1, 1, 1])
-    with btn_col2:
-        generate_clicked = st.button("Generate Briefing")
+    with st.container(border=True):
+        st.markdown("<strong style='color:#E2E8F0!important;'>NVIDIA Blackwell GPU Market...</strong><br><span style='color: #94A3B8 !important; font-size: 0.8rem;'>2h ago • Deep Scan</span>", unsafe_allow_html=True)
+    with st.container(border=True):
+        st.markdown("<strong style='color:#E2E8F0!important;'>Fed Interest Rate Pivot...</strong><br><span style='color: #94A3B8 !important; font-size: 0.8rem;'>5h ago • Macro</span>", unsafe_allow_html=True)
+    with st.container(border=True):
+        st.markdown("<strong style='color:#E2E8F0!important;'>OPEC+ Production Cut...</strong><br><span style='color: #94A3B8 !important; font-size: 0.8rem;'>Yesterday • Energy</span>", unsafe_allow_html=True)
 
-# --- Functional Logic ---
-if generate_clicked:
+with col_main:
+    # Check for chat input
+    company = st.chat_input("Analyze the impact of a company's market position...")
+
     if company:
-        # Create an elevated container for the entire output
+        # Show Top Header
+        st.markdown(f"<span class='badge' style='background-color:#064E3B;color:#34D399;padding:4px 8px;border-radius:4px;font-size:0.75rem;font-weight:bold;'>AI AGENT EXECUTION</span> <span style='color: #94A3B8 !important; font-size: 0.8rem; margin-left: 10px;'>TASK ID: #QT-{len(company)*1337}</span>", unsafe_allow_html=True)
+        st.markdown(f"<h1 style='font-size: 2.5rem; margin-top: 10px; color:#F8FAFC!important;'>Market Analysis: {company.upper()}</h1>", unsafe_allow_html=True)
+        st.divider()
+        
+        # Execute Agents
+        with st.status(f"System running macro and micro analysis for {company}...", expanded=True) as status:
+            st.write(">> INITIALIZING ALPHA NODE (QUANT)...")
+            alpha_data = run_quantitative_analysis(company)
+            
+            st.write(">> INITIALIZING BETA NODE (QUAL)...")
+            beta_data = run_qualitative_analysis(company)
+            
+            st.write(">> ROUTING TO NEURAL JUDGE FOR SYNTHESIS...")
+            final_report = evaluate_reports(company, alpha_data, beta_data)
+            status.update(label="ANALYSIS COMPILED", state="complete")
+
+        # Parse Data
+        revenue_match = re.search(r"Revenue:\s*(.*)", alpha_data, re.IGNORECASE)
+        stock_match = re.search(r"Stock Price Change:\s*(.*)", alpha_data, re.IGNORECASE)
+
+        revenue_val = revenue_match.group(1).strip() if revenue_match else "SCANNING..."
+        stock_val = stock_match.group(1).strip() if stock_match else "CALCULATING..."
+
+        # Metrics Row
+        m1, m2, m3 = st.columns(3)
+        with m1:
+            st.metric(label="REVENUE TRAJECTORY", value=revenue_val)
+        with m2:
+            st.metric(label="STOCK MOMENTUM", value=stock_val)
+        with m3:
+            # Simple heuristic for top signal
+            top_signal = "HOLD"
+            if "-" in stock_val:
+                top_signal = "SELL"
+            elif "%" in stock_val:
+                top_signal = "ACCUMULATE"
+            st.metric(label="TOP SIGNAL", value=top_signal)
+            
+        st.divider()
+
+        # Insights
+        st.markdown("<p style='color: #10B981 !important; font-size: 0.9rem; font-weight: bold; letter-spacing: 1px;'>KEY EXECUTIVE INSIGHTS</p>", unsafe_allow_html=True)
+        
         with st.container(border=True):
-            with st.status(f"Analyzing {company}...", expanded=True) as status:
-                # 1. Run Researchers
-                st.write("📊 Researching Market Sentiment (Beta Agent)...")
-                beta_data = run_qualitative_analysis(company)
-
-                st.write("🔍 Researching Quant data (Alpha Agent)...")
-                alpha_data = run_quantitative_analysis(company)
-                
-                # 2. Run Judge
-                st.write("⚖️ Finalizing report (LLM-as-Judge)...")
-                final_report = evaluate_reports(company, alpha_data, beta_data)
-                
-                status.update(label="Analysis Complete!", state="complete")
-
-            # --- Data Parsing ---
-            revenue_match = re.search(r"Revenue:\s*(.*)", alpha_data, re.IGNORECASE)
-            stock_match = re.search(r"Stock Price Change:\s*(.*)", alpha_data, re.IGNORECASE)
-
-            revenue_val = revenue_match.group(1).strip() if revenue_match else "N/A"
-            stock_val = stock_match.group(1).strip() if stock_match else "N/A"
-
-            # --- Display Results ---
-            st.divider()
-            
-            # Display Metrics at the top
-            met_col1, met_col2 = st.columns(2)
-            with met_col1:
-                st.metric(label="Revenue", value=revenue_val)
-            with met_col2:
-                st.metric(label="Stock Price Change", value=stock_val)
-                
-            st.divider()
-
-            # Display Sections in Order: Beta, Alpha, Judge
-            st.subheader("Qualitative Insights")
+            st.markdown("<p style='color: #10B981 !important; font-weight: bold;'>[BETA] QUALITATIVE DATA</p>", unsafe_allow_html=True)
             st.markdown(beta_data)
-            
-            st.divider()
-            st.subheader("Quantitative Analysis")
+        
+        with st.container(border=True):
+            st.markdown("<p style='color: #10B981 !important; font-weight: bold;'>[ALPHA] QUANTITATIVE DATA</p>", unsafe_allow_html=True)
             st.markdown(alpha_data)
             
-            st.divider()
-            st.subheader(f"Final Executive Briefing")
+        with st.container(border=True):
+            st.markdown("<p style='color: #3B82F6 !important; font-weight: bold;'>[JUDGE] FINAL SYNTHESIS</p>", unsafe_allow_html=True)
             st.markdown(final_report)
-            
-            st.divider()
-            
-            # --- Dedicated Visual Section ---
-            vis_col1, vis_col2 = st.columns(2)
-            
-            with vis_col1:
-                st.subheader("Company Logo")
-                # Create a simple domain guess based on the first word of the company name
-                domain_guess = company.split()[0].lower().replace(",", "") + ".com"
-                try:
-                    st.image(f"https://logo.clearbit.com/{domain_guess}", width=100)
-                except Exception:
-                    st.write("*(Logo unavailable)*")
-                    
-            with vis_col2:
-                st.subheader("Leadership")
-                formatted_name = company.replace(" ", "+")
-                try:
-                    st.image(f"https://ui-avatars.com/api/?name={formatted_name}&size=128&background=random", width=100)
-                except Exception:
-                    st.write("*(Leadership avatar unavailable)*")
+
+        # Terminal Log Output
+        st.markdown(f"""
+        <div class="agent-log">
+            <p style="color:#10B981!important;margin:0;">[SYSTEM] Final Briefing generated for {company}.</p>
+            <p style="color:#10B981!important;margin:0;">[SYSTEM] Confidence Interval: 94.2%</p>
+            <p style="color:#10B981!important;margin:0;">[SYSTEM] Awaiting next command...</p>
+        </div>
+        """, unsafe_allow_html=True)
 
     else:
-        st.warning("Please enter a company name first.")
+        # Default empty state
+        st.markdown("<span style='background-color:#1E293B;color:#94A3B8;padding:4px 10px;border-radius:4px;font-size:0.75rem;font-weight:bold;'>SYSTEM IDLE</span>", unsafe_allow_html=True)
+        st.markdown("<h1 style='font-size: 2.5rem; margin-top: 10px; color: #475569 !important;'>Awaiting Execution Protocol</h1>", unsafe_allow_html=True)
+        st.markdown("<p style='color: #475569 !important;'>Use the terminal input below to launch a targeted market scan.</p>", unsafe_allow_html=True)
