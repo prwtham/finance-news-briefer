@@ -49,7 +49,7 @@ def fetch_trending_news():
 
 @st.cache_data(ttl=600)
 def fetch_pexels_image(query):
-    """Fetch a single landscape image URL from Pexels for a given search query."""
+    """Fetch a single landscape image from Pexels with photographer credit."""
     key = os.getenv("PEXELS_API_KEY")
     if not key: return None
     try:
@@ -62,19 +62,39 @@ def fetch_pexels_image(query):
         if resp.status_code == 200:
             photos = resp.json().get("photos", [])
             if photos:
-                return photos[0]["src"]["landscape"]
+                p = photos[0]
+                return {
+                    "url": p["src"]["landscape"],
+                    "photographer": p.get("photographer", ""),
+                    "photo_url": p.get("url", ""),
+                    "alt": p.get("alt", ""),
+                }
     except: pass
     return None
 
-def get_news_image_query(title):
-    """Extract 2-3 keywords from a headline for a unique Pexels image search."""
-    stop = {"the","a","an","is","are","to","for","of","in","on","and","or","as","by","at","from","with","its","it","that","this","how","why","what","vs","amid"}
-    words = [w for w in re.sub(r'[^a-zA-Z\s]','',title).split() if w.lower() not in stop and len(w)>2]
-    return " ".join(words[:3]) if words else "financial markets"
-
 @st.cache_data(ttl=600)
-def get_company_logo_url(company_name):
-    """Use Clearbit autocomplete to find the correct domain, then fetch logo."""
+def fetch_company_image(company_name):
+    """Fetch a company-related image from Pexels (building, office, branding)."""
+    key = os.getenv("PEXELS_API_KEY")
+    if not key: return None
+    try:
+        resp = requests.get(
+            "https://api.pexels.com/v1/search",
+            headers={"Authorization": key},
+            params={"query": f"{company_name} company office building", "per_page": 1, "orientation": "landscape", "size": "small"},
+            timeout=5
+        )
+        if resp.status_code == 200:
+            photos = resp.json().get("photos", [])
+            if photos:
+                p = photos[0]
+                return {
+                    "url": p["src"]["small"],
+                    "photographer": p.get("photographer", ""),
+                    "photo_url": p.get("url", ""),
+                }
+    except: pass
+    # Fallback: try Clearbit autocomplete for a real logo
     try:
         resp = requests.get(
             f"https://autocomplete.clearbit.com/v1/companies/suggest?query={company_name}",
@@ -83,14 +103,18 @@ def get_company_logo_url(company_name):
         if resp.status_code == 200:
             suggestions = resp.json()
             if suggestions:
-                domain = suggestions[0].get("domain", "")
                 logo = suggestions[0].get("logo", "")
                 if logo:
-                    return logo
-                if domain:
-                    return f"https://logo.clearbit.com/{domain}"
+                    return {"url": logo, "photographer": "", "photo_url": ""}
+    except: pass
     except: pass
     return None
+
+def get_news_image_query(title):
+    """Extract 2-3 keywords from a headline for a unique Pexels image search."""
+    stop = {"the","a","an","is","are","to","for","of","in","on","and","or","as","by","at","from","with","its","it","that","this","how","why","what","vs","amid"}
+    words = [w for w in re.sub(r'[^a-zA-Z\s]','',title).split() if w.lower() not in stop and len(w)>2]
+    return " ".join(words[:3]) if words else "financial markets"
 
 def get_color(v): return "#4edea3" if v>0 else "#ec4242" if v<0 else "#c5c6cd"
 def get_arrow(v): return "arrow_drop_up" if v>0 else "arrow_drop_down" if v<0 else "remove"
@@ -371,20 +395,25 @@ with col_news:
     st.markdown('<p class="section-label">Trending News</p>', unsafe_allow_html=True)
     for i, news in enumerate(trending_news[:3]):
         cc = cat_color(news["category"])
-        img_url = fetch_pexels_image(get_news_image_query(news["title"]))
-        if img_url:
-            img_html = f'<img class="news-img" src="{img_url}" alt="{news["category"]}" />'
+        pexels_data = fetch_pexels_image(get_news_image_query(news["title"]))
+        if pexels_data:
+            img_html = f'<img class="news-img" src="{pexels_data["url"]}" alt="{pexels_data.get("alt","")}" />'
+            credit = f'<div class="news-meta"><a href="{pexels_data["photo_url"]}" target="_blank" style="color:#64748b!important;">Photo by {pexels_data["photographer"]}</a> on <a href="https://www.pexels.com" target="_blank" style="color:#64748b!important;">Pexels</a></div>'
         else:
             fallback_grads = ["linear-gradient(135deg,#0a192f,#112240,#4edea3)","linear-gradient(135deg,#0a192f,#3c0003,#ec4242)","linear-gradient(135deg,#0a192f,#26364a,#b9c7e4)"]
             img_html = f'<div style="width:100%;height:96px;border-radius:8px;margin-bottom:12px;background:{fallback_grads[i%3]};"></div>'
+            credit = '<div class="news-meta">Source</div>'
         st.markdown(f"""
         <div class="news-card">
             {img_html}
             <span class="news-cat" style="color:{cc}!important;">{news["category"]}</span>
             <div class="news-title">{news["title"][:65]}</div>
-            <div class="news-meta">Source</div>
+            {credit}
         </div>
         """, unsafe_allow_html=True)
+
+    # Pexels attribution (required by API terms)
+    st.markdown('<div style="text-align:center;margin-top:12px;"><a href="https://www.pexels.com" target="_blank"><img src="https://images.pexels.com/lib/api/pexels-white.png" style="width:80px;opacity:0.5;" /></a></div>', unsafe_allow_html=True)
 
     st.markdown("""
     <div class="portfolio-alert">
@@ -435,11 +464,11 @@ with col_main:
             # =================================================================
             st.markdown(f'<div style="margin-bottom:16px;"><span class="exec-badge">AI AGENT EXECUTION</span><span class="task-id">TASK ID: #QT-{task_id}</span></div>', unsafe_allow_html=True)
 
-            # Company Logo
-            logo_url = get_company_logo_url(company)
+            # Company Image from Pexels (or Clearbit logo fallback)
+            company_img = fetch_company_image(company)
             initial = company.strip()[0].upper()
-            if logo_url:
-                logo_html = f'<img class="company-logo" src="{logo_url}" alt="{company} logo" />'
+            if company_img:
+                logo_html = f'<img class="company-logo" src="{company_img["url"]}" alt="{company}" />'
             else:
                 logo_html = f'<div class="company-initial">{initial}</div>'
             st.markdown(f'<div class="company-header">{logo_html}<h1 style="font-size:30px;font-weight:700;font-family:Manrope,sans-serif;color:#fff!important;letter-spacing:-0.02em;line-height:38px;margin:0;">Market Analysis: {company}</h1></div>', unsafe_allow_html=True)
