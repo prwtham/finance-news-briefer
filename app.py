@@ -77,6 +77,17 @@ def get_image_query(category):
     }
     return mapping.get(category, "financial markets")
 
+def get_company_logo_url(company_name):
+    """Try Clearbit logo, fallback to a styled initial-letter HTML block."""
+    domain_guess = company_name.strip().split()[0].lower()
+    clearbit_url = f"https://logo.clearbit.com/{domain_guess}.com"
+    try:
+        r = requests.head(clearbit_url, timeout=3)
+        if r.status_code == 200:
+            return clearbit_url
+    except: pass
+    return None
+
 def get_color(v): return "#4edea3" if v>0 else "#ec4242" if v<0 else "#c5c6cd"
 def get_arrow(v): return "arrow_drop_up" if v>0 else "arrow_drop_down" if v<0 else "remove"
 def compute_signal(s): return "ACCUMULATE" if s>70 else "HOLD" if s>50 else "REDUCE" if s>30 else "SELL"
@@ -240,6 +251,21 @@ div[data-testid="stVerticalBlockBorderWrapper"]{background-color:#1b2b3f!importa
 .metrics-row{display:flex;align-items:center;gap:0;padding:16px 0;border-top:1px solid rgba(51,65,85,0.5);border-bottom:1px solid rgba(51,65,85,0.5);}
 .metric-col{display:flex;flex-direction:column;}
 .metric-col+.metric-col{border-left:1px solid rgba(51,65,85,0.5);padding-left:24px;margin-left:24px;}
+
+/* Company Logo */
+.company-logo{width:48px;height:48px;border-radius:12px;object-fit:contain;background:#112240;border:1px solid #44474d;}
+.company-initial{width:48px;height:48px;border-radius:12px;background:linear-gradient(135deg,#4edea3,#112240);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;color:#fff!important;font-family:'Manrope',sans-serif;flex-shrink:0;}
+.company-header{display:flex;align-items:center;gap:16px;margin-bottom:16px;}
+
+/* Sidebar Toggle */
+button[data-testid="stBaseButton-header"]{background:#112240!important;border:1px solid rgba(78,222,163,0.3)!important;border-radius:8px!important;color:#4edea3!important;}
+[data-testid="stSidebar"] [data-testid="stSidebarCollapseButton"]{display:block!important;}
+
+/* Sidebar active nav link */
+.nav-link{display:flex;align-items:center;gap:16px;padding:12px 24px;cursor:pointer;transition:all 0.2s;text-decoration:none;color:#94a3b8!important;}
+.nav-link:hover{background:#1E293B;color:#fff!important;}
+.nav-link-active{background:#1E293B;border-left:4px solid #4edea3;color:#4edea3!important;}
+.nav-link-active .nav-label{color:#4edea3!important;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -252,6 +278,9 @@ trending_news = fetch_trending_news()
 # =============================================================================
 # SIDEBAR
 # =============================================================================
+if "active_tab" not in st.session_state:
+    st.session_state.active_tab = "Intelligence"
+
 with st.sidebar:
     st.markdown("""
     <div style="padding:24px 24px 0 24px;">
@@ -267,20 +296,26 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
 
-    st.markdown("""
-    <div class="nav-item nav-active"><span class="material-symbols-outlined">analytics</span><span class="nav-label" style="color:#4edea3!important;">Intelligence</span></div>
-    <div class="nav-item"><span class="material-symbols-outlined">finance_mode</span><span class="nav-label">Market Tickers</span></div>
-    <div class="nav-item"><span class="material-symbols-outlined">terminal</span><span class="nav-label">Agent Logs</span></div>
-    <div class="nav-item"><span class="material-symbols-outlined">pie_chart</span><span class="nav-label">Portfolios</span></div>
-    <div class="nav-item"><span class="material-symbols-outlined">description</span><span class="nav-label">Reports</span></div>
-    """, unsafe_allow_html=True)
+    # Navigation tabs
+    tabs = [
+        ("Intelligence", "analytics"),
+        ("Market Tickers", "finance_mode"),
+        ("Agent Logs", "terminal"),
+        ("Portfolios", "pie_chart"),
+        ("Reports", "description"),
+    ]
+    for tab_name, icon in tabs:
+        active = "nav-link-active" if st.session_state.active_tab == tab_name else ""
+        if st.sidebar.button(f"  {tab_name}", key=f"nav_{tab_name}", use_container_width=True):
+            st.session_state.active_tab = tab_name
+            st.rerun()
 
     st.button("+ New Research", use_container_width=True)
 
     st.markdown("""
     <div style="margin-top:auto;padding:24px;border-top:1px solid rgba(51,65,85,0.5);">
-        <div class="nav-item" style="padding:8px 0;"><span class="material-symbols-outlined">gavel</span><span class="nav-label">Compliance</span></div>
-        <div class="nav-item" style="padding:8px 0;"><span class="material-symbols-outlined">api</span><span class="nav-label">API Docs</span></div>
+        <div class="nav-link" style="padding:8px 0;"><span class="material-symbols-outlined">gavel</span><span class="nav-label">Compliance</span></div>
+        <div class="nav-link" style="padding:8px 0;"><span class="material-symbols-outlined">api</span><span class="nav-label">API Docs</span></div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -374,7 +409,15 @@ with col_main:
             # COMPANY MODE — Full Alpha + Beta + Judge pipeline
             # =================================================================
             st.markdown(f'<div style="margin-bottom:16px;"><span class="exec-badge">AI AGENT EXECUTION</span><span class="task-id">TASK ID: #QT-{task_id}</span></div>', unsafe_allow_html=True)
-            st.markdown(f'<h1 style="font-size:30px;font-weight:700;font-family:Manrope,sans-serif;color:#fff!important;letter-spacing:-0.02em;line-height:38px;margin-bottom:16px;">Market Analysis: {company}</h1>', unsafe_allow_html=True)
+
+            # Company Logo
+            logo_url = get_company_logo_url(company)
+            initial = company.strip()[0].upper()
+            if logo_url:
+                logo_html = f'<img class="company-logo" src="{logo_url}" alt="{company} logo" />'
+            else:
+                logo_html = f'<div class="company-initial">{initial}</div>'
+            st.markdown(f'<div class="company-header">{logo_html}<h1 style="font-size:30px;font-weight:700;font-family:Manrope,sans-serif;color:#fff!important;letter-spacing:-0.02em;line-height:38px;margin:0;">Market Analysis: {company}</h1></div>', unsafe_allow_html=True)
 
             with st.status(f"Scanning Bloomberg, Reuters, Financial Times for {company}...", expanded=True) as status:
                 st.write(">> INITIALIZING ALPHA NODE (QUANT)...")
