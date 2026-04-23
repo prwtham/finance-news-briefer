@@ -9,7 +9,7 @@ from researcher_beta import run_qualitative_analysis
 from judge import evaluate_reports
 
 load_dotenv()
-st.set_page_config(page_title="QUANTUM AI Terminal", page_icon="📟", layout="wide")
+st.set_page_config(page_title="QUANTUM AI Terminal", page_icon="📟", layout="wide", initial_sidebar_state="expanded")
 
 # =============================================================================
 # DATA HELPERS
@@ -345,41 +345,20 @@ with st.sidebar:
     """, unsafe_allow_html=True)
 
     # Navigation tabs
-    tabs = [
-        ("Intelligence", "analytics"),
-        ("Market Tickers", "finance_mode"),
-        ("Agent Logs", "terminal"),
-        ("Portfolios", "pie_chart"),
-        ("Reports", "description"),
-    ]
-    for tab_name, icon in tabs:
-        active = "nav-link-active" if st.session_state.active_tab == tab_name else ""
-        if st.sidebar.button(f"  {tab_name}", key=f"nav_{tab_name}", use_container_width=True):
-            st.session_state.active_tab = tab_name
-            st.rerun()
-
-    st.button("+ New Research", use_container_width=True)
-
-    st.markdown("""
-    <div style="margin-top:auto;padding:24px;border-top:1px solid rgba(51,65,85,0.5);">
-        <div class="nav-link" style="padding:8px 0;"><span class="material-symbols-outlined">gavel</span><span class="nav-label">Compliance</span></div>
-        <div class="nav-link" style="padding:8px 0;"><span class="material-symbols-outlined">api</span><span class="nav-label">API Docs</span></div>
-    </div>
-    """, unsafe_allow_html=True)
-
-# =============================================================================
-# TOP NAV (functional tabs)
-# =============================================================================
-nav_cols = st.columns([2,1,1,1,6,1,1])
-with nav_cols[0]:
-    st.markdown('<span class="topnav-brand">QUANTUM AI</span>', unsafe_allow_html=True)
-for idx, view_name in enumerate(["Overview","Forecasting","Sentiment"]):
-    with nav_cols[idx+1]:
-        is_active = st.session_state.active_view == view_name
-        style = "color:#4edea3!important;font-weight:700;" if is_active else "color:#64748b!important;"
-        if st.button(view_name, key=f"view_{view_name}", use_container_width=True):
+    st.markdown('<p class="section-label" style="padding:0 24px; margin-bottom: 8px;">Navigation</p>', unsafe_allow_html=True)
+    for view_name in ["Overview", "Forecasting", "Sentiment"]:
+        if st.sidebar.button(f" {view_name} ", key=f"nav_{view_name}", use_container_width=True):
             st.session_state.active_view = view_name
             st.rerun()
+
+    st.markdown('<p class="section-label" style="padding:24px 24px 8px 24px;">Research History</p>', unsafe_allow_html=True)
+    if "search_history" not in st.session_state:
+        st.session_state.search_history = []
+    for i, item in enumerate(st.session_state.search_history[-3:]):
+        cls = "hist-card-active" if i==0 else "hist-card-inactive"
+        st.markdown(f'<div class="hist-card {cls}" style="margin: 0 24px 8px 24px;"><p class="hist-title">{item["name"][:40]}</p><span class="hist-meta">{item["time"]} • Deep Scan</span></div>', unsafe_allow_html=True)
+    if not st.session_state.search_history:
+        st.markdown('<p style="color:#64748b!important;font-size:12px;padding:0 24px;">No research yet.</p>', unsafe_allow_html=True)
 
 # =============================================================================
 # TICKER TAPE (REAL-TIME)
@@ -393,20 +372,9 @@ for i,(lbl,d) in enumerate(ticker_data.items()):
 st.markdown(f'<div class="ticker-row">{ticker_html}</div>', unsafe_allow_html=True)
 
 # =============================================================================
-# 3-COLUMN LAYOUT
+# 2-COLUMN LAYOUT
 # =============================================================================
-col_hist, col_main, col_news = st.columns([2, 7, 3])
-
-# --- LEFT: Research History ---
-with col_hist:
-    st.markdown('<p class="section-label">Research History</p>', unsafe_allow_html=True)
-    if "search_history" not in st.session_state:
-        st.session_state.search_history = []
-    for i, item in enumerate(st.session_state.search_history[-3:]):
-        cls = "hist-card-active" if i==0 else "hist-card-inactive"
-        st.markdown(f'<div class="hist-card {cls}"><p class="hist-title">{item["name"][:40]}</p><span class="hist-meta">{item["time"]} • Deep Scan</span></div>', unsafe_allow_html=True)
-    if not st.session_state.search_history:
-        st.markdown('<p style="color:#64748b!important;font-size:12px;">No research yet.</p>', unsafe_allow_html=True)
+col_main, col_news = st.columns([7, 3])
 
 # --- RIGHT: Trending News ---
 with col_news:
