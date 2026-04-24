@@ -1,12 +1,42 @@
 import streamlit as st
-import re, os, requests
+import re, os, requests, base64
 import yfinance as yf
-from datetime import datetime
+import plotly.graph_objects as go
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from tavily import TavilyClient
 from researcher_alpha import run_quantitative_analysis
 from researcher_beta import run_qualitative_analysis
 from judge import evaluate_reports
+
+def colorize_numbers(text):
+    if not isinstance(text, str):
+        return text
+    # Escape dollar signs to prevent Streamlit from interpreting them as KaTeX math blocks,
+    # which breaks our injected HTML span tags.
+    text = text.replace("$", r"\$")
+    
+    # Alt 1: has \$, optional suffix
+    # Alt 2: no \$, requires suffix (%, billion, million, etc)
+    pattern = r'(?<![>\d])(?:\\\$\s*-?\d+(?:[,.]\d+)*(?:\s*(?:billion|million|trillion|B|M|K))?|-?\d+(?:[,.]\d+)*(?:\s*(?:billion|million|trillion|B|M|K)|%))(?![<\da-zA-Z])'
+    
+    neg_words = ["decline", "declined", "drop", "dropped", "fall", "fell", "lose", "lost", "down", "decrease", "decreased", "miss", "missed", "below", "cut", "debt", "deficit", "expense", "loss", "risk", "shortfall", "penalty", "weak"]
+    
+    def replacer(m):
+        val = m.group(0)
+        start_idx = m.start()
+        context = text[max(0, start_idx-35):start_idx].lower()
+        
+        if "-" in val:
+            return f'<span class="color-red" style="font-weight:600;">{val}</span>'
+            
+        if any(re.search(rf'\b{w}\b', context) for w in neg_words):
+            return f'<span class="color-red" style="font-weight:600;">{val}</span>'
+        else:
+            return f'<span class="color-green" style="font-weight:600;">{val}</span>'
+            
+    text = re.sub(pattern, replacer, text)
+    return text
 
 load_dotenv()
 st.set_page_config(page_title="QUANTUM AI Terminal", page_icon="📟", layout="wide", initial_sidebar_state="expanded")
@@ -81,8 +111,17 @@ def fetch_unsplash_image(company_name, image_type="logo"):
     if image_type == "logo":
         query = f"{company_name} logo brand"
         orientation = "squarish"
-    else:
+    elif image_type == "graph":
         query = f"{company_name} stock market chart graph"
+        orientation = "landscape"
+    elif image_type == "catalyst":
+        query = f"{company_name} growth innovation technology"
+        orientation = "landscape"
+    elif image_type == "risk":
+        query = f"{company_name} risk market volatility"
+        orientation = "landscape"
+    else:
+        query = f"{company_name} {image_type}"
         orientation = "landscape"
         
     try:
@@ -103,6 +142,221 @@ def fetch_unsplash_image(company_name, image_type="logo"):
                 }
     except: pass
     return None
+
+@st.cache_data(ttl=600)
+def fetch_unsplash_images(query, count=3):
+    """Fetch multiple images from Unsplash for a gallery."""
+    key = os.getenv("UNSPLASH_API_KEY")
+    if not key: return []
+    try:
+        resp = requests.get(
+            "https://api.unsplash.com/search/photos",
+            headers={"Authorization": f"Client-ID {key}"},
+            params={"query": query, "per_page": count, "orientation": "landscape"},
+            timeout=5
+        )
+        if resp.status_code == 200:
+            results = []
+            for p in resp.json().get("results", []):
+                results.append({
+                    "url": p["urls"]["regular"],
+                    "small_url": p["urls"]["small"],
+                    "photographer": p["user"]["name"],
+                    "photo_url": p["links"]["html"],
+                    "alt": p.get("alt_description", ""),
+                })
+            return results
+    except: pass
+    return []
+
+COMMON_TICKERS = {
+    "meta": "META", "facebook": "META", "apple": "AAPL", "amazon": "AMZN",
+    "google": "GOOGL", "alphabet": "GOOGL", "microsoft": "MSFT", "nvidia": "NVDA",
+    "tesla": "TSLA", "netflix": "NFLX", "amd": "AMD", "intel": "INTC",
+    "disney": "DIS", "walmart": "WMT", "coca-cola": "KO", "coca cola": "KO",
+    "pepsi": "PEP", "pepsico": "PEP", "nike": "NKE", "boeing": "BA",
+    "jpmorgan": "JPM", "jp morgan": "JPM", "goldman sachs": "GS",
+    "berkshire": "BRK-B", "visa": "V", "mastercard": "MA", "paypal": "PYPL",
+    "salesforce": "CRM", "adobe": "ADBE", "uber": "UBER", "airbnb": "ABNB",
+    "spotify": "SPOT", "snap": "SNAP", "snapchat": "SNAP", "twitter": "X",
+    "palantir": "PLTR", "snowflake": "SNOW", "shopify": "SHOP",
+    "coinbase": "COIN", "robinhood": "HOOD", "samsung": "005930.KS",
+    "tcs": "TCS.NS", "infosys": "INFY", "reliance": "RELIANCE.NS",
+    "ibm": "IBM", "oracle": "ORCL", "qualcomm": "QCOM", "broadcom": "AVGO",
+    "micron": "MU", "arm": "ARM", "dell": "DELL", "hp": "HPQ",
+    "cisco": "CSCO", "sony": "SONY", "toyota": "TM",
+}
+
+COMPANY_DOMAINS = {
+    "meta": "meta.com", "facebook": "meta.com", "apple": "apple.com",
+    "amazon": "amazon.com", "google": "google.com", "alphabet": "google.com",
+    "microsoft": "microsoft.com", "nvidia": "nvidia.com", "tesla": "tesla.com",
+    "netflix": "netflix.com", "amd": "amd.com", "intel": "intel.com",
+    "disney": "disney.com", "walmart": "walmart.com", "coca-cola": "coca-cola.com",
+    "coca cola": "coca-cola.com", "pepsi": "pepsico.com", "pepsico": "pepsico.com",
+    "nike": "nike.com", "boeing": "boeing.com", "jpmorgan": "jpmorganchase.com",
+    "jp morgan": "jpmorganchase.com", "goldman sachs": "goldmansachs.com",
+    "berkshire": "berkshirehathaway.com", "visa": "visa.com", "mastercard": "mastercard.com",
+    "paypal": "paypal.com", "salesforce": "salesforce.com", "adobe": "adobe.com",
+    "uber": "uber.com", "airbnb": "airbnb.com", "spotify": "spotify.com",
+    "snap": "snap.com", "snapchat": "snap.com", "palantir": "palantir.com",
+    "snowflake": "snowflake.com", "shopify": "shopify.com", "coinbase": "coinbase.com",
+    "robinhood": "robinhood.com", "samsung": "samsung.com", "ibm": "ibm.com",
+    "oracle": "oracle.com", "qualcomm": "qualcomm.com", "broadcom": "broadcom.com",
+    "micron": "micron.com", "dell": "dell.com", "hp": "hp.com",
+    "cisco": "cisco.com", "sony": "sony.com", "toyota": "toyota.com",
+    "infosys": "infosys.com", "tcs": "tcs.com",
+    "aapl": "apple.com", "msft": "microsoft.com", "googl": "google.com", "goog": "google.com", "amzn": "amazon.com", "nvda": "nvidia.com", "tsla": "tesla.com", "nflx": "netflix.com", "intc": "intel.com", "dis": "disney.com", "wmt": "walmart.com", "ko": "coca-cola.com", "pep": "pepsico.com", "nke": "nike.com", "ba": "boeing.com", "jpm": "jpmorganchase.com", "gs": "goldmansachs.com", "brk-b": "berkshirehathaway.com", "v": "visa.com", "ma": "mastercard.com", "pypl": "paypal.com", "crm": "salesforce.com", "adbe": "adobe.com", "abnb": "airbnb.com", "spot": "spotify.com", "pltr": "palantir.com", "snow": "snowflake.com", "shop": "shopify.com", "coin": "coinbase.com", "hood": "robinhood.com", "orcl": "oracle.com", "qcom": "qualcomm.com", "avgo": "broadcom.com", "mu": "micron.com", "arm": "arm.com", "hpq": "hp.com", "csco": "cisco.com", "tm": "toyota.com", "infy": "infosys.com", "x": "x.com", "tcs.ns": "tcs.com", "reliance.ns": "ril.com", "005930.ks": "samsung.com", "twitter": "x.com", "reliance": "ril.com"
+}
+
+def _resolve_domain(company_name):
+    """Helper to resolve company name or ticker to a domain."""
+    name_lower = company_name.strip().lower()
+    if name_lower in COMPANY_DOMAINS:
+        return COMPANY_DOMAINS[name_lower]
+    # Fallback: strip non-alphanumeric and add .com
+    clean = re.sub(r'[^a-z0-9]', '', name_lower)
+    return f"{clean}.com"
+
+def get_clearbit_logo_url(company_name):
+    """Return a logo URL for the company using Logo.dev."""
+    token = os.getenv("LOGODEV_API_KEY", "")
+    if not token:
+        return None
+    domain = _resolve_domain(company_name)
+    return f"https://img.logo.dev/{domain}?token={token}"
+
+@st.cache_data(ttl=86400)
+def fetch_company_logo_b64(company_name):
+    """Fetch company logo from Logo.dev server-side and return as base64 data URI.
+    This bypasses Streamlit's iframe sandbox that blocks external image URLs."""
+    token = os.getenv("LOGODEV_API_KEY", "")
+    if not token:
+        return None
+    domain = _resolve_domain(company_name)
+    url = f"https://img.logo.dev/{domain}?token={token}"
+    try:
+        resp = requests.get(url, timeout=5, headers={"User-Agent": "Mozilla/5.0"})
+        if resp.status_code == 200 and resp.headers.get("content-type", "").startswith("image"):
+            b64 = base64.b64encode(resp.content).decode()
+            mime = resp.headers.get("content-type", "image/png").split(";")[0]
+            return f"data:{mime};base64,{b64}"
+    except: pass
+    return None
+
+def resolve_ticker(company_name):
+    """Resolve a company name to a stock ticker symbol."""
+    name_lower = company_name.strip().lower()
+    if name_lower in COMMON_TICKERS:
+        return COMMON_TICKERS[name_lower]
+    # If input looks like a ticker already (all caps, short)
+    if company_name.isupper() and len(company_name) <= 5:
+        return company_name
+    # Try yfinance search as fallback
+    try:
+        t = yf.Ticker(company_name)
+        if t.info and t.info.get("symbol"):
+            return t.info["symbol"]
+    except: pass
+    return None
+
+@st.cache_data(ttl=300)
+def fetch_stock_history(ticker, period="6mo"):
+    """Fetch stock price history from Yahoo Finance."""
+    try:
+        t = yf.Ticker(ticker)
+        hist = t.history(period=period)
+        if hist.empty:
+            return None, None
+        info = {}
+        try:
+            ti = t.info
+            info = {
+                "name": ti.get("shortName", ticker),
+                "currency": ti.get("currency", "USD"),
+                "market_cap": ti.get("marketCap", 0),
+                "pe_ratio": ti.get("trailingPE", 0),
+                "52w_high": ti.get("fiftyTwoWeekHigh", 0),
+                "52w_low": ti.get("fiftyTwoWeekLow", 0),
+            }
+        except: info = {"name": ticker, "currency": "USD"}
+        return hist, info
+    except:
+        return None, None
+
+def create_price_chart(hist, ticker, info=None):
+    """Create a styled plotly price chart with volume overlay."""
+    if hist is None or hist.empty:
+        return None
+    name = info.get("name", ticker) if info else ticker
+    close = hist["Close"]
+    color = "#419577" if close.iloc[-1] >= close.iloc[0] else "#ec4242"
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=hist.index, y=close,
+        mode='lines', name='Price',
+        line=dict(color=color, width=2.5),
+        fill='tozeroy',
+        fillcolor=f"rgba({','.join(str(int(color.lstrip('#')[i:i+2],16)) for i in (0,2,4))},0.08)",
+        hovertemplate='%{x|%b %d, %Y}<br>$%{y:,.2f}<extra></extra>',
+    ))
+    curr = close.iloc[-1]
+    prev = close.iloc[0]
+    pct = ((curr - prev) / prev) * 100
+    arrow = "▲" if pct >= 0 else "▼"
+    title_text = f"{name} ({ticker})  •  ${curr:,.2f}  <span style='color:{color};'>{arrow} {abs(pct):.2f}%</span>"
+    fig.update_layout(
+        title=dict(text=title_text, font=dict(size=14, family="Inter, sans-serif", color="#2D3436")),
+        plot_bgcolor="#FFFFFF", paper_bgcolor="#FFFFFF",
+        xaxis=dict(showgrid=False, linecolor="#E0D5C7", tickfont=dict(size=10, color="#7a7a7a")),
+        yaxis=dict(showgrid=True, gridcolor="rgba(224,213,199,0.3)", linecolor="#E0D5C7", tickfont=dict(size=10, color="#7a7a7a"), tickprefix="$"),
+        margin=dict(l=10, r=10, t=40, b=10),
+        height=320, showlegend=False,
+        hovermode="x unified",
+    )
+    return fig
+
+def create_volume_chart(hist, ticker):
+    """Create a styled volume bar chart."""
+    if hist is None or hist.empty:
+        return None
+    colors = ["#419577" if hist["Close"].iloc[i] >= hist["Open"].iloc[i] else "#ec4242" for i in range(len(hist))]
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=hist.index, y=hist["Volume"],
+        marker_color=colors, opacity=0.7,
+        hovertemplate='%{x|%b %d}<br>Vol: %{y:,.0f}<extra></extra>',
+    ))
+    fig.update_layout(
+        title=dict(text="Trading Volume", font=dict(size=13, family="Inter, sans-serif", color="#2D3436")),
+        plot_bgcolor="#FFFFFF", paper_bgcolor="#FFFFFF",
+        xaxis=dict(showgrid=False, linecolor="#E0D5C7", tickfont=dict(size=10, color="#7a7a7a")),
+        yaxis=dict(showgrid=True, gridcolor="rgba(224,213,199,0.3)", linecolor="#E0D5C7", tickfont=dict(size=10, color="#7a7a7a")),
+        margin=dict(l=10, r=10, t=35, b=10),
+        height=200, showlegend=False, bargap=0.3,
+    )
+    return fig
+
+def create_candlestick_chart(hist, ticker, days=30):
+    """Create a candlestick chart for recent trading days."""
+    if hist is None or hist.empty:
+        return None
+    recent = hist.tail(days)
+    fig = go.Figure(data=[go.Candlestick(
+        x=recent.index, open=recent['Open'], high=recent['High'],
+        low=recent['Low'], close=recent['Close'],
+        increasing_line_color='#419577', decreasing_line_color='#ec4242',
+        increasing_fillcolor='#419577', decreasing_fillcolor='#ec4242',
+    )])
+    fig.update_layout(
+        title=dict(text=f"Candlestick (Last {days} Trading Days)", font=dict(size=13, family="Inter, sans-serif", color="#2D3436")),
+        plot_bgcolor="#FFFFFF", paper_bgcolor="#FFFFFF",
+        xaxis=dict(showgrid=False, linecolor="#E0D5C7", tickfont=dict(size=10, color="#7a7a7a"), rangeslider=dict(visible=False)),
+        yaxis=dict(showgrid=True, gridcolor="rgba(224,213,199,0.3)", linecolor="#E0D5C7", tickfont=dict(size=10, color="#7a7a7a"), tickprefix="$"),
+        margin=dict(l=10, r=10, t=35, b=10),
+        height=300, showlegend=False,
+    )
+    return fig
 
 def get_news_image_query(title):
     """Extract 2-3 keywords from a headline for a unique Pexels image search."""
@@ -281,8 +535,9 @@ div[data-testid="stVerticalBlockBorderWrapper"]{background-color:#FFFFFF!importa
 .color-green, .color-green * { color: #419577 !important; }
 .color-red, .color-red * { color: #ec4242 !important; }
 .color-gray, .color-gray * { color: #7a7a7a !important; }
-.ticker-row{display:flex;align-items:center;gap:0;background:#F5D649;border-radius:12px;border:1px solid rgba(0,0,0,0.05);padding:0 24px;height:60px;margin-bottom:32px;overflow:hidden;}
-.ticker-item{display:flex;align-items:center;gap:8px;padding-right:32px;border-right:1px solid rgba(0,0,0,0.12);margin-right:0;padding-left:32px;}
+.ticker-row{display:flex;align-items:center;gap:0;background:#F5D649;border-radius:12px;border:1px solid rgba(0,0,0,0.05);padding:0 24px;height:60px;margin-bottom:32px;overflow-x:auto;}
+.ticker-row::-webkit-scrollbar { display: none; }
+.ticker-item{display:flex;align-items:center;gap:8px;padding-right:32px;border-right:1px solid rgba(0,0,0,0.12);margin-right:0;padding-left:32px;flex-shrink:0;}
 .ticker-item:first-child{padding-left:0;}
 .ticker-item:last-child{border-right:none;}
 .ticker-lbl{font-size:10px;color:#2D3436;text-transform:uppercase;font-weight:600;letter-spacing:0.05em;}
@@ -378,6 +633,11 @@ div[data-testid="stVerticalBlockBorderWrapper"]{background-color:#FFFFFF!importa
 .stButton>button p{color:#F5D649!important;font-weight:800!important;text-transform:uppercase!important;letter-spacing:0.05em!important;}
 .stButton>button:hover{background-color:#357a62!important;color:#F5D649!important;transform:translateY(-1px)!important;box-shadow:0 4px 12px rgba(65,149,119,0.3)!important;}
 .stButton>button:hover p{color:#F5D649!important;}
+
+/* Dynamic Metric Colors */
+.color-green{color:#419577!important;}
+.color-red{color:#ec4242!important;}
+.color-gray{color:#7a7a7a!important;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -447,7 +707,7 @@ st.markdown('<div style="text-align:right; margin-top: -12px; margin-bottom: 40p
 # TOP NAV (functional tabs)
 # =============================================================================
 # Center the tabs
-nav_cols = st.columns([4, 1.2, 1.2, 1.2, 4])
+nav_cols = st.columns([3, 1.3, 1.6, 1.3, 3])
 for idx, view_name in enumerate(["Overview","Forecasting","Sentiment"]):
     with nav_cols[idx+1]:
         is_active = st.session_state.active_view == view_name
@@ -550,16 +810,85 @@ elif company:
         # =================================================================
         # COMPANY MODE — Full Alpha + Beta + Judge pipeline
         # =================================================================
-        st.markdown(f'<div style="margin-bottom:16px;"><span class="exec-badge">AI AGENT EXECUTION</span><span class="task-id">TASK ID: #QT-{task_id}</span></div>', unsafe_allow_html=True)
 
-        # Company Image from Unsplash
-        company_img = fetch_unsplash_image(company, "logo")
+        # Resolve ticker & fetch stock info early for the header card
+        ticker_symbol = resolve_ticker(company)
+        stock_hist, stock_info = fetch_stock_history(ticker_symbol) if ticker_symbol else (None, {})
+        stock_info = stock_info or {}
+
+        # Build live price string
+        curr_price, pct_6m = None, None
+        if stock_hist is not None and not stock_hist.empty:
+            curr_price = float(stock_hist["Close"].iloc[-1])
+            pct_6m = ((curr_price - float(stock_hist["Close"].iloc[0])) / float(stock_hist["Close"].iloc[0])) * 100
+
+        logo_data_uri = fetch_company_logo_b64(company)
         initial = company.strip()[0].upper()
-        if company_img:
-            logo_html = f'<img class="company-logo" src="{company_img["url"]}" alt="{company}" />'
+        if logo_data_uri:
+            logo_img_html = f'<img src="{logo_data_uri}" alt="{company}" style="width:72px;height:72px;border-radius:14px;object-fit:contain;background:#fff;border:1px solid #E0D5C7;padding:6px;display:block;" />'
         else:
-            logo_html = f'<div class="company-initial">{initial}</div>'
-        st.markdown(f'<div class="company-header">{logo_html}<h1 style="font-size:30px;font-weight:700;font-family:Manrope,sans-serif;color:#419577!important;letter-spacing:-0.02em;line-height:38px;margin:0;">Market Analysis: {company}</h1></div>', unsafe_allow_html=True)
+            logo_img_html = f'<div style="width:72px;height:72px;border-radius:14px;background:linear-gradient(135deg,#419577,#F5AB41);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:800;color:#fff;font-family:Manrope,sans-serif;">{initial}</div>'
+        full_name = stock_info.get("name", company)
+        sector = ""
+        description = ""
+        website = ""
+        hq = ""
+        try:
+            t_info = yf.Ticker(ticker_symbol).info if ticker_symbol else {}
+            sector = t_info.get("sector", "")
+            description = t_info.get("longBusinessSummary", "")[:280]
+            website = t_info.get("website", "")
+            hq_city = t_info.get("city", "")
+            hq_country = t_info.get("country", "")
+            hq = ", ".join(filter(None, [hq_city, hq_country]))
+        except: pass
+
+        mcap = stock_info.get("market_cap", 0)
+        mcap_str = f"${mcap/1e12:.2f}T" if mcap >= 1e12 else f"${mcap/1e9:.1f}B" if mcap >= 1e9 else f"${mcap/1e6:.0f}M" if mcap >= 1e6 else "—"
+        pe = stock_info.get("pe_ratio", 0)
+        pe_cls = "color-green" if (0 < pe <= 25) else "color-red" if pe > 25 else "color-gray"
+        pe_str = f'<span class="{pe_cls}" style="font-weight:700;">{pe:.1f}x</span>' if pe else "—"
+        price_str = f"${curr_price:,.2f}" if curr_price else "—"
+        pct_cls = "color-green" if pct_6m is not None and pct_6m >= 0 else "color-red"
+        _arrow = "▲" if pct_6m is not None and pct_6m >= 0 else "▼"
+        _pct_val = f"{_arrow} {abs(pct_6m):.2f}%" if pct_6m is not None else ""
+        pct_str = f'<span class="{pct_cls}" style="font-weight:700;">{_pct_val}</span> (6M)' if pct_6m is not None else ""
+
+        ticker_badge = f'<span style="background:#F5D649;color:#2D3436;font-size:11px;font-weight:800;padding:3px 10px;border-radius:20px;letter-spacing:0.05em;">{ticker_symbol}</span>' if ticker_symbol else ""
+        sector_badge = f'<span style="background:rgba(65,149,119,0.1);color:#419577;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;border:1px solid rgba(65,149,119,0.25);">{sector}</span>' if sector else ""
+        website_link = f'<a href="{website}" target="_blank" style="color:#7a7a7a;font-size:12px;text-decoration:none;"><span class="material-symbols-outlined" style="font-size:13px;vertical-align:-2px;">language</span> {website.replace("https://","").replace("http://","").rstrip("/")}</a>' if website else ""
+        hq_text = f'<span style="color:#7a7a7a;font-size:12px;"><span class="material-symbols-outlined" style="font-size:13px;vertical-align:-2px;">location_on</span> {hq}</span>' if hq else ""
+
+        st.markdown(f"""
+        <div style="background:#FFFFFF;border:1px solid #E0D5C7;border-radius:16px;padding:28px 32px;margin-bottom:4px;">
+            <div style="display:flex;align-items:flex-start;gap:24px;">
+                <div style="flex-shrink:0;">
+                    {logo_img_html}
+                </div>
+                <div style="flex:1;min-width:0;">
+                    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
+                        <h1 style="font-size:26px;font-weight:800;font-family:Manrope,sans-serif;color:#2D3436!important;letter-spacing:-0.02em;margin:0;">{full_name}</h1>
+                        {ticker_badge}
+                        {sector_badge}
+                    </div>
+                    <p style="font-size:13px;color:#5a5a5a!important;line-height:1.6;margin:0 0 12px 0;max-width:680px;">{colorize_numbers(description)}</p>
+                    <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:center;">
+                        {website_link}
+                        {hq_text}
+                    </div>
+                </div>
+                <div style="flex-shrink:0;text-align:right;border-left:1px solid #E0D5C7;padding-left:28px;min-width:130px;">
+                    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:#7a7a7a;margin-bottom:4px;">Live Price</div>
+                    <div style="font-size:28px;font-weight:800;font-family:Manrope,sans-serif;color:#2D3436!important;line-height:1;">{price_str}</div>
+                    <div style="font-size:12px;font-weight:600;color:#7a7a7a;margin-top:4px;">{pct_str}</div>
+                    <div style="margin-top:16px;display:flex;flex-direction:column;gap:6px;">
+                        <div><span style="font-size:10px;color:#7a7a7a;text-transform:uppercase;letter-spacing:0.05em;">Mkt Cap</span><br><span style="font-size:14px;font-weight:700;color:#2D3436;">{mcap_str}</span></div>
+                        <div><span style="font-size:10px;color:#7a7a7a;text-transform:uppercase;letter-spacing:0.05em;">P/E Ratio</span><br><span style="font-size:14px;font-weight:700;">{pe_str}</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
         with st.status(f"Scanning Bloomberg, Reuters, Financial Times for {company}...", expanded=True) as status:
             st.write(">> INITIALIZING ALPHA NODE (QUANT)...")
@@ -577,14 +906,30 @@ elif company:
         vm = re.search(r"Volatility Index:\s*(LOW|MEDIUM|HIGH)",alpha_data,re.I)
         if sm: signal = sm.group(1).upper()
         if vm: volatility = vm.group(1).upper()
-        vc = vol_color(volatility)
-        sc = sig_color(signal)
+        
+        s_cls = "color-green" if score >= 60 else "color-red" if score <= 40 else "color-gray"
+        v_cls = "color-green" if volatility=="LOW" else "color-red" if volatility=="HIGH" else "color-gray"
+        sig_cls = "color-green" if signal in ("ACCUMULATE","BUY") else "color-red" if signal in ("REDUCE","SELL") else "color-gray"
 
+        # AI Signal metrics row — flush under the profile card
         st.markdown(f"""
-        <div class="metrics-row">
-            <div class="metric-col"><span class="metric-label">Sentiment Score</span><span class="metric-value" style="color:#419577!important;">{score} / 100</span></div>
-            <div class="metric-col"><span class="metric-label">Volatility Index</span><span class="metric-value" style="color:{vc}!important;">{volatility}</span></div>
-            <div class="metric-col"><span class="metric-label">Top Signal</span><span class="metric-value" style="color:{sc}!important;">{signal}</span></div>
+        <div style="background:#FFFFFF;border:1px solid #E0D5C7;border-top:none;border-radius:0 0 16px 16px;padding:16px 32px;margin-bottom:28px;display:flex;gap:0;border-top:1px solid #E0D5C7;margin-top:-1px;">
+            <div style="flex:1;display:flex;flex-direction:column;border-right:1px solid #E0D5C7;padding-right:24px;">
+                <span style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:#7a7a7a;">AI Sentiment Score</span>
+                <span class="{s_cls}" style="font-size:22px;font-weight:700;font-family:Manrope,sans-serif;">{score} <span style="font-size:13px;color:#7a7a7a;font-weight:400;">/ 100</span></span>
+            </div>
+            <div style="flex:1;display:flex;flex-direction:column;border-right:1px solid #E0D5C7;padding:0 24px;">
+                <span style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:#7a7a7a;">Volatility Index</span>
+                <span class="{v_cls}" style="font-size:22px;font-weight:700;font-family:Manrope,sans-serif;">{volatility}</span>
+            </div>
+            <div style="flex:1;display:flex;flex-direction:column;padding-left:24px;">
+                <span style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:#7a7a7a;">Top Signal</span>
+                <span class="{sig_cls}" style="font-size:22px;font-weight:700;font-family:Manrope,sans-serif;">{signal}</span>
+            </div>
+            <div style="flex-shrink:0;display:flex;align-items:center;padding-left:24px;border-left:1px solid #E0D5C7;">
+                <span style="font-size:10px;color:#7a7a7a;font-weight:600;text-transform:uppercase;">TASK ID</span>&nbsp;
+                <span style="font-size:11px;font-weight:700;color:#419577;">#{task_id}</span>
+            </div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -594,49 +939,60 @@ elif company:
             for ins in insights:
                 icon = "check_circle" if ins["sentiment"]=="positive" else "warning"
                 ic = "#419577" if ins["sentiment"]=="positive" else "#ec4242"
-                st.markdown(f'<div class="insight-item"><span class="material-symbols-outlined" style="color:{ic}!important;flex-shrink:0;">{icon}</span><p class="insight-text"><span class="insight-bold">{ins["title"]}:</span> {ins["body"]}</p></div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="insight-item" style="text-align:center;justify-content:center;"><span class="material-symbols-outlined" style="color:{ic}!important;flex-shrink:0;">{icon}</span><p class="insight-text" style="text-align:center;"><span class="insight-bold">{colorize_numbers(ins["title"])}:</span> {colorize_numbers(ins["body"])}</p></div>', unsafe_allow_html=True)
         else:
-            st.markdown(beta_data)
+            st.markdown(colorize_numbers(beta_data), unsafe_allow_html=True)
 
         st.markdown('<div style="height:24px;"></div>', unsafe_allow_html=True)
         catalyst_text, risk_text = extract_catalyst_risk(company, alpha_data, beta_data)
+
         c1, c2 = st.columns(2)
         with c1:
-            bars = "".join([f'<div class="mini-bar" style="background:#419577;height:{20+i*13}%;"></div>' for i in range(6)])
-            st.markdown(f'<div style="padding:24px;background:#FFFFFF;border:1px solid #E0D5C7;border-radius:12px;"><p class="metric-label" style="margin-bottom:16px;">Upside Catalyst</p><div class="mini-chart" style="background:linear-gradient(to top right,rgba(65,149,119,0.15),transparent);">{bars}</div><p style="font-size:12px;color:#5a5a5a!important;">{catalyst_text}</p></div>', unsafe_allow_html=True)
+            st.markdown(f'<div style="padding:24px;background:#FFFFFF;border:1px solid #E0D5C7;border-radius:12px;height:100%;"><p class="metric-label" style="margin-bottom:16px;">Upside Catalyst</p><div style="width:100%;height:120px;border-radius:8px;background:linear-gradient(to right, rgba(65,149,119,0.15), rgba(245,214,73,0.15));margin-bottom:16px;display:flex;align-items:center;justify-content:center;"><span class="material-symbols-outlined" style="font-size:32px;color:#2D3436;">trending_up</span></div><p style="font-size:13px;color:#5a5a5a!important;line-height:1.6;margin:0;">{colorize_numbers(catalyst_text)}</p></div>', unsafe_allow_html=True)
         with c2:
-            bars = "".join([f'<div class="mini-bar" style="background:#ec4242;height:{100-i*15}%;"></div>' for i in range(6)])
-            st.markdown(f'<div style="padding:24px;background:#FFFFFF;border:1px solid #E0D5C7;border-radius:12px;"><p class="metric-label" style="margin-bottom:16px;">Risk Exposure</p><div class="mini-chart" style="background:linear-gradient(to top right,rgba(236,66,66,0.15),transparent);">{bars}</div><p style="font-size:12px;color:#5a5a5a!important;">{risk_text}</p></div>', unsafe_allow_html=True)
+            st.markdown(f'<div style="padding:24px;background:#FFFFFF;border:1px solid #E0D5C7;border-radius:12px;height:100%;"><p class="metric-label" style="margin-bottom:16px;">Risk Exposure</p><div style="width:100%;height:120px;border-radius:8px;background:linear-gradient(to right, rgba(236,66,66,0.15), rgba(245,171,65,0.15));margin-bottom:16px;display:flex;align-items:center;justify-content:center;"><span class="material-symbols-outlined" style="font-size:32px;color:#2D3436;">trending_down</span></div><p style="font-size:13px;color:#5a5a5a!important;line-height:1.6;margin:0;">{colorize_numbers(risk_text)}</p></div>', unsafe_allow_html=True)
+
+        # ---- Stock Performance Charts (Real Data) ----
+        st.markdown('<div style="height:32px;"></div>', unsafe_allow_html=True)
+        if ticker_symbol:
+            stock_hist, stock_info = stock_hist, stock_info  # already fetched for header
+            if stock_hist is not None and not stock_hist.empty:
+                st.markdown('<h2 class="insight-title">Stock Performance</h2>', unsafe_allow_html=True)
+
+                # Key stock metrics row (52W range)
+                high_52 = stock_info.get("52w_high", 0)
+                low_52 = stock_info.get("52w_low", 0)
+                mc1, mc2 = st.columns(2)
+                for col, label, val in [(mc1,"52-Week High",f"${high_52:,.2f}" if high_52 else "N/A"),(mc2,"52-Week Low",f"${low_52:,.2f}" if low_52 else "N/A")]:
+                    with col:
+                        st.markdown(f'<div style="text-align:center;padding:12px 0 4px 0;"><span class="metric-label">{label}</span><br><span style="font-size:18px;font-weight:700;font-family:Manrope,sans-serif;color:#2D3436!important;">{val}</span></div>', unsafe_allow_html=True)
+
+                # Price chart
+                price_fig = create_price_chart(stock_hist, ticker_symbol, stock_info)
+                if price_fig:
+                    st.plotly_chart(price_fig, use_container_width=True, config={"displayModeBar": False})
+
+                # Volume + Candlestick side by side
+                vc1, vc2 = st.columns(2)
+                with vc1:
+                    vol_fig = create_volume_chart(stock_hist, ticker_symbol)
+                    if vol_fig:
+                        st.plotly_chart(vol_fig, use_container_width=True, config={"displayModeBar": False})
+                with vc2:
+                    candle_fig = create_candlestick_chart(stock_hist, ticker_symbol)
+                    if candle_fig:
+                        st.plotly_chart(candle_fig, use_container_width=True, config={"displayModeBar": False})
+
+                st.markdown(f'<p style="font-size:10px;color:#b0a89e!important;text-align:right;margin-top:-8px;">Data from Yahoo Finance · {ticker_symbol} · Updated {datetime.now().strftime("%b %d, %Y %H:%M")}</p>', unsafe_allow_html=True)
 
         st.markdown('<div style="height:32px;"></div>', unsafe_allow_html=True)
 
         with st.expander("📄 Full Alpha Report (Quantitative)"):
-            st.markdown(alpha_data)
+            st.markdown(colorize_numbers(alpha_data), unsafe_allow_html=True)
         with st.expander("📄 Full Beta Report (Qualitative)"):
-            unsplash_img = fetch_unsplash_image(company, "graph")
-            if unsplash_img:
-                st.markdown(f'''
-                <div style="margin-bottom: 24px;">
-                    <h3 style="color:#419577; font-size: 16px; margin: 0 0 16px 0;">Market Graphs &amp; Charts</h3>
-                    <img src="{unsplash_img["url"]}" style="width:100%; max-height: 250px; object-fit: cover; border-radius: 8px; margin-bottom: 8px;" />
-                    <p style="color:#7a7a7a; font-size:12px; text-align:right;">Photo by <a href="{unsplash_img["photo_url"]}" target="_blank" style="color:#7a7a7a;">{unsplash_img["photographer"]}</a> on Unsplash</p>
-                </div>
-                ''', unsafe_allow_html=True)
-            
-            # Mock Graph for Qualitative sentiment
-            bars = "".join([f'<div style="background:{col};height:{h}px;width:12px;border-radius:2px;"></div>' for col, h in zip(["#ec4242","#F5AB41","#F5D649","#419577","#419577"], [40, 60, 30, 80, 100])])
-            st.markdown(f'''
-            <div style="background:#FFFFFF; padding: 16px; border-radius: 8px; border: 1px solid #E0D5C7; margin-bottom: 24px;">
-                <h3 style="color:#419577; font-size: 16px; margin: 0 0 16px 0;">Sentiment Trend (30 Days)</h3>
-                <div style="display:flex; align-items:flex-end; gap:8px; height: 100px; padding-bottom: 8px; border-bottom: 1px solid #E0D5C7;">
-                    {bars}
-                </div>
-            </div>
-            ''', unsafe_allow_html=True)
-
-            st.markdown(beta_data)
+            st.markdown(colorize_numbers(beta_data), unsafe_allow_html=True)
         with st.expander("⚖️ Full Judge Synthesis"):
-            st.markdown(final_report)
+            st.markdown(colorize_numbers(final_report), unsafe_allow_html=True)
 
     else:
         # =================================================================
@@ -656,12 +1012,12 @@ elif company:
             for ins in insights:
                 icon = "check_circle" if ins["sentiment"]=="positive" else "warning"
                 ic = "#419577" if ins["sentiment"]=="positive" else "#ec4242"
-                st.markdown(f'<div class="insight-item"><span class="material-symbols-outlined" style="color:{ic}!important;flex-shrink:0;">{icon}</span><p class="insight-text"><span class="insight-bold">{ins["title"]}:</span> {ins["body"]}</p></div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="insight-item" style="text-align:center;justify-content:center;"><span class="material-symbols-outlined" style="color:{ic}!important;flex-shrink:0;">{icon}</span><p class="insight-text" style="text-align:center;"><span class="insight-bold">{colorize_numbers(ins["title"])}:</span> {colorize_numbers(ins["body"])}</p></div>', unsafe_allow_html=True)
         else:
-            st.markdown(topic_data)
+            st.markdown(colorize_numbers(topic_data), unsafe_allow_html=True)
 
         with st.expander("📄 Full Topic Analysis"):
-            st.markdown(topic_data)
+            st.markdown(colorize_numbers(topic_data), unsafe_allow_html=True)
 
 else:
     st.markdown('<span class="exec-badge" style="background:rgba(224,213,199,0.3)!important;color:#7a7a7a!important;border-color:#E0D5C7!important;">SYSTEM IDLE</span>', unsafe_allow_html=True)
