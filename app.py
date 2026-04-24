@@ -302,14 +302,20 @@ div[data-testid="stVerticalBlockBorderWrapper"]{background-color:#FFFFFF!importa
 .log-dim{color:#7a7a7a!important;}
 .log-highlight{color:#419577!important;}
 
-/* News */
-.news-card{background:#FFFFFF;border:1px solid #E0D5C7;border-radius:12px;padding:16px;margin-bottom:24px;cursor:pointer;transition:transform 0.2s, box-shadow 0.2s, border-color 0.2s;}
-.news-card:hover{transform:translateY(-2px);box-shadow:0 8px 16px rgba(0,0,0,0.08);border-color:#F5AB41;}
-.news-img{width:100%;height:120px;object-fit:cover;border-radius:8px;margin-bottom:16px;opacity:0.9;}
-.news-img:hover{opacity:1;}
-.news-cat{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;}
-.news-title{font-size:14px;color:#2D3436!important;font-weight:600;font-family:'Manrope',sans-serif;margin-top:8px;line-height:1.4;}
-.news-meta{font-size:10px;color:#7a7a7a!important;margin-top:12px;font-weight:600;letter-spacing:0.05em;}
+/* News - Full Bleed Overlay Style */
+.news-card{position:relative;height:240px;border-radius:16px;margin-bottom:24px;overflow:hidden;cursor:pointer;transition:all 0.3s cubic-bezier(0.4, 0, 0.2, 1);border:1px solid rgba(224, 213, 199, 0.4);}
+.news-card:hover{transform:translateY(-4px);box-shadow:0 12px 24px rgba(0,0,0,0.15);border-color:#F5AB41;}
+.news-img{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;transition:transform 0.5s ease;}
+.news-card:hover .news-img{transform:scale(1.05);}
+.news-overlay{position:absolute;bottom:0;left:0;right:0;top:0;background:linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.4) 50%, rgba(0,0,0,0.1) 100%);display:flex;flex-direction:column;justify-content:flex-end;padding:24px;z-index:2;}
+.news-cat{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:0.1em;color:#F5D649!important;margin-bottom:8px;}
+.news-title{font-size:18px;color:#FFFFFF!important;font-weight:700;font-family:'Manrope',sans-serif;line-height:1.3;margin:0;}
+.news-meta{font-size:10px;color:rgba(255,255,255,0.7)!important;margin-top:12px;font-weight:600;}
+
+/* Hero Section */
+.hero-container{height:60vh;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;margin-bottom:40px;}
+.hero-title{font-family:'Manrope',sans-serif;font-size:72px;font-weight:900;margin:0;padding:0;background:linear-gradient(135deg,#419577,#F5AB41);-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:-0.03em;line-height:1.1;}
+.hero-subtitle{color:#7a7a7a!important;font-size:16px;margin:20px 0 0 0;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;}
 
 /* History */
 .hist-card{padding:12px;border-radius:8px;margin-bottom:12px;cursor:pointer;transition:all 0.2s;}
@@ -380,9 +386,9 @@ if "active_view" not in st.session_state:
     st.session_state.active_view = "Overview"
 
 st.markdown("""
-<div style="margin-bottom: 24px; margin-top: -16px; text-align: center;">
-    <h1 style="font-family: 'Manrope', sans-serif; font-size: 46px; font-weight: 900; margin: 0; padding: 0; background: linear-gradient(135deg, #419577, #F5AB41); -webkit-background-clip: text; -webkit-text-fill-color: transparent; letter-spacing: -0.02em;">Financial News Briefer</h1>
-    <p style="color: #7a7a7a!important; font-size: 13px; margin: 8px 0 0 0; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase;">Intelligent Multi-Agent Terminal</p>
+<div class="hero-container">
+    <h1 class="hero-title">Financial News Briefer</h1>
+    <p class="hero-subtitle">Intelligent Multi-Agent Terminal</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -414,9 +420,8 @@ st.markdown(f'<div class="ticker-row">{ticker_html}</div>', unsafe_allow_html=Tr
 # =============================================================================
 col_main, col_spacer, col_news = st.columns([6.5, 0.5, 3])
 
-# --- RIGHT: Trending News ---
+# --- RIGHT: News Panel ---
 with col_news:
-    st.markdown('<p class="section-label">Trending News</p>', unsafe_allow_html=True)
     for i, news in enumerate(trending_news[:3]):
         cc = cat_color(news["category"])
         pexels_data = fetch_pexels_image(get_news_image_query(news["title"]))
@@ -424,20 +429,21 @@ with col_news:
             img_html = f'<img class="news-img" src="{pexels_data["url"]}" alt="{pexels_data.get("alt","")}" />'
         else:
             fallback_grads = ["linear-gradient(135deg,#419577,#FDF5EC,#F5D649)","linear-gradient(135deg,#F5AB41,#FDF5EC,#419577)","linear-gradient(135deg,#F5D649,#FDF5EC,#F5AB41)"]
-            img_html = f'<div style="width:100%;height:96px;border-radius:8px;margin-bottom:12px;background:{fallback_grads[i%3]};"></div>'
+            img_html = f'<div class="news-img" style="background:{fallback_grads[i%3]};"></div>'
             
         st.markdown(f"""
         <div class="news-card">
-            <a href="{news['url']}" target="_blank" style="text-decoration: none; display: block;">
-                {img_html}
-                <span class="news-cat" style="color:{cc}!important;">{news["category"]}</span>
-                <div class="news-title" style="color:#2D3436;">{news["title"][:65]}</div>
-            </a>
+            <a href="{news['url']}" target="_blank" style="text-decoration: none; display: block; position: absolute; top:0; left:0; width:100%; height:100%; z-index:5;"></a>
+            {img_html}
+            <div class="news-overlay">
+                <span class="news-cat">{news["category"]}</span>
+                <div class="news-title">{news["title"][:65]}</div>
+            </div>
         </div>
         """, unsafe_allow_html=True)
 
-    # Pexels attribution (required by API terms)
-    st.markdown('<div style="text-align:center;margin-top:12px;"><a href="https://www.pexels.com" target="_blank"><img src="https://images.pexels.com/lib/api/pexels-white.png" style="width:80px;opacity:0.5;" /></a></div>', unsafe_allow_html=True)
+    # Subtle Pexels attribution
+    st.markdown('<div style="text-align:right; margin-top: -12px; opacity:0.3;"><a href="https://www.pexels.com" target="_blank"><img src="https://images.pexels.com/lib/api/pexels-white.png" style="width:40px;" /></a></div>', unsafe_allow_html=True)
 
 # --- CENTER: Main Terminal ---
 with col_main:
