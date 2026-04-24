@@ -861,32 +861,30 @@ elif company:
 
         st.markdown(f"""
 <div style="background:#FFFFFF;border:1px solid #E0D5C7;border-radius:16px;padding:28px 32px;margin-bottom:4px;">
-    <div style="display:flex;align-items:flex-start;gap:24px;">
-        <div style="flex-shrink:0;">
-            {logo_img_html}
-        </div>
-        <div style="flex:1;min-width:0;">
-            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
-                <h1 style="font-size:26px;font-weight:800;font-family:Manrope,sans-serif;color:#2D3436!important;letter-spacing:-0.02em;margin:0;">{full_name}</h1>
-                {ticker_badge}
-                {sector_badge}
-            </div>
-            <p style="font-size:13px;color:#5a5a5a!important;line-height:1.6;margin:0 0 12px 0;max-width:680px;">{colorize_numbers(description)}</p>
-            <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:center;">
-                {website_link}
-                {hq_text}
-            </div>
-        </div>
-        <div style="flex-shrink:0;text-align:right;border-left:1px solid #E0D5C7;padding-left:28px;min-width:130px;">
-            <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:#7a7a7a;margin-bottom:4px;">Live Price</div>
-            <div style="font-size:28px;font-weight:800;font-family:Manrope,sans-serif;color:#2D3436!important;line-height:1;">{price_str}</div>
-            <div style="font-size:12px;font-weight:600;color:#7a7a7a;margin-top:4px;">{pct_str}</div>
-            <div style="margin-top:16px;display:flex;flex-direction:column;gap:6px;">
-                <div><span style="font-size:10px;color:#7a7a7a;text-transform:uppercase;letter-spacing:0.05em;">Mkt Cap</span><br><span style="font-size:14px;font-weight:700;color:#2D3436;">{mcap_str}</span></div>
-                <div><span style="font-size:10px;color:#7a7a7a;text-transform:uppercase;letter-spacing:0.05em;">P/E Ratio</span><br><span style="font-size:14px;font-weight:700;">{pe_str}</span></div>
-            </div>
-        </div>
-    </div>
+<div style="display:flex;align-items:flex-start;gap:24px;">
+<div style="flex-shrink:0;">
+{logo_img_html}
+</div>
+<div style="flex:1;min-width:0;">
+<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
+<h1 style="font-size:26px;font-weight:800;font-family:Manrope,sans-serif;color:#2D3436!important;letter-spacing:-0.02em;margin:0;">{full_name}</h1>
+{ticker_badge}{sector_badge}
+</div>
+<p style="font-size:13px;color:#5a5a5a!important;line-height:1.6;margin:0 0 12px 0;max-width:680px;">{colorize_numbers(description)}</p>
+<div style="display:flex;gap:20px;flex-wrap:wrap;align-items:center;">
+{website_link}{hq_text}
+</div>
+</div>
+<div style="flex-shrink:0;text-align:right;border-left:1px solid #E0D5C7;padding-left:28px;min-width:130px;">
+<div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:#7a7a7a;margin-bottom:4px;">Live Price</div>
+<div style="font-size:28px;font-weight:800;font-family:Manrope,sans-serif;color:#2D3436!important;line-height:1;">{price_str}</div>
+<div style="font-size:12px;font-weight:600;color:#7a7a7a;margin-top:4px;">{pct_str}</div>
+<div style="margin-top:16px;display:flex;flex-direction:column;gap:6px;">
+<div><span style="font-size:10px;color:#7a7a7a;text-transform:uppercase;letter-spacing:0.05em;">Mkt Cap</span><br><span style="font-size:14px;font-weight:700;color:#2D3436;">{mcap_str}</span></div>
+<div><span style="font-size:10px;color:#7a7a7a;text-transform:uppercase;letter-spacing:0.05em;">P/E Ratio</span><br><span style="font-size:14px;font-weight:700;">{pe_str}</span></div>
+</div>
+</div>
+</div>
 </div>
 """, unsafe_allow_html=True)
 
