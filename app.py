@@ -10,34 +10,32 @@ from researcher_beta import run_qualitative_analysis
 from judge import evaluate_reports
 
 def colorize_numbers(text):
-    import re
-    # Color number red if followed by negative financial words
-    text = re.sub(
-        r'(\b[\d,.]+%?)(?=\s*(?:decline|drop|fall|loss|down|decrease|miss|below|lower|slump|weak|cut|layoff|layoffs|deficit|debt|risk|warning|concern|hurt|drag|headwind))',
-        r'<span style="color:#ec4242;font-weight:600;">\1</span>',
-        text, flags=re.IGNORECASE
-    )
-    # Color number red if preceded by negative words
-    text = re.sub(
-        r'(\b(?:decline|drop|fell|lost|down|decreased|missed|below|cut)\s*)(\b[\d,.]+%?)',
-        r'\1<span style="color:#ec4242;font-weight:600;">\2</span>',
-        text, flags=re.IGNORECASE
-    )
-    # Color number green if followed by positive financial words
-    text = re.sub(
-        r'(\b[\d,.]+%?)(?=\s*(?:growth|gain|rise|up|increase|beat|above|higher|profit|revenue|surge|strong|record|outperform|upgrade|boost|expand))',
-        r'<span style="color:#419577;font-weight:600;">\1</span>',
-        text, flags=re.IGNORECASE
-    )
-    # Color number green if preceded by positive words
-    text = re.sub(
-        r'(\b(?:grew|gained|rose|up|increased|beat|above|exceeded|surged)\s*)(\b[\d,.]+%?)',
-        r'\1<span style="color:#419577;font-weight:600;">\2</span>',
-        text, flags=re.IGNORECASE
-    )
-    # Always color explicitly signed numbers: +X% green, -X% red
-    text = re.sub(r'(\+[\d,.]+%?)', r'<span style="color:#419577;font-weight:600;">\1</span>', text)
-    text = re.sub(r'(-[\d,.]+%?)', r'<span style="color:#ec4242;font-weight:600;">\1</span>', text)
+    if not isinstance(text, str):
+        return text
+    # Escape dollar signs to prevent Streamlit from interpreting them as KaTeX math blocks,
+    # which breaks our injected HTML span tags.
+    text = text.replace("$", r"\$")
+    
+    # Alt 1: has \$, optional suffix
+    # Alt 2: no \$, requires suffix (%, billion, million, etc)
+    pattern = r'(?<![>\d])(?:\\\$\s*-?\d+(?:[,.]\d+)*(?:\s*(?:billion|million|trillion|B|M|K))?|-?\d+(?:[,.]\d+)*(?:\s*(?:billion|million|trillion|B|M|K)|%))(?![<\da-zA-Z])'
+    
+    neg_words = ["decline", "declined", "drop", "dropped", "fall", "fell", "lose", "lost", "down", "decrease", "decreased", "miss", "missed", "below", "cut", "debt", "deficit", "expense", "loss", "risk", "shortfall", "penalty", "weak"]
+    
+    def replacer(m):
+        val = m.group(0)
+        start_idx = m.start()
+        context = text[max(0, start_idx-35):start_idx].lower()
+        
+        if "-" in val:
+            return f'<span class="color-red" style="font-weight:600;">{val}</span>'
+            
+        if any(re.search(rf'\b{w}\b', context) for w in neg_words):
+            return f'<span class="color-red" style="font-weight:600;">{val}</span>'
+        else:
+            return f'<span class="color-green" style="font-weight:600;">{val}</span>'
+            
+    text = re.sub(pattern, replacer, text)
     return text
 
 load_dotenv()
@@ -537,8 +535,9 @@ div[data-testid="stVerticalBlockBorderWrapper"]{background-color:#FFFFFF!importa
 .color-green, .color-green * { color: #419577 !important; }
 .color-red, .color-red * { color: #ec4242 !important; }
 .color-gray, .color-gray * { color: #7a7a7a !important; }
-.ticker-row{display:flex;align-items:center;gap:0;background:#F5D649;border-radius:12px;border:1px solid rgba(0,0,0,0.05);padding:0 24px;height:60px;margin-bottom:32px;overflow:hidden;}
-.ticker-item{display:flex;align-items:center;gap:8px;padding-right:32px;border-right:1px solid rgba(0,0,0,0.12);margin-right:0;padding-left:32px;}
+.ticker-row{display:flex;align-items:center;gap:0;background:#F5D649;border-radius:12px;border:1px solid rgba(0,0,0,0.05);padding:0 24px;height:60px;margin-bottom:32px;overflow-x:auto;}
+.ticker-row::-webkit-scrollbar { display: none; }
+.ticker-item{display:flex;align-items:center;gap:8px;padding-right:32px;border-right:1px solid rgba(0,0,0,0.12);margin-right:0;padding-left:32px;flex-shrink:0;}
 .ticker-item:first-child{padding-left:0;}
 .ticker-item:last-child{border-right:none;}
 .ticker-lbl{font-size:10px;color:#2D3436;text-transform:uppercase;font-weight:600;letter-spacing:0.05em;}
@@ -634,6 +633,11 @@ div[data-testid="stVerticalBlockBorderWrapper"]{background-color:#FFFFFF!importa
 .stButton>button p{color:#F5D649!important;font-weight:800!important;text-transform:uppercase!important;letter-spacing:0.05em!important;}
 .stButton>button:hover{background-color:#357a62!important;color:#F5D649!important;transform:translateY(-1px)!important;box-shadow:0 4px 12px rgba(65,149,119,0.3)!important;}
 .stButton>button:hover p{color:#F5D649!important;}
+
+/* Dynamic Metric Colors */
+.color-green{color:#419577!important;}
+.color-red{color:#ec4242!important;}
+.color-gray{color:#7a7a7a!important;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -703,7 +707,7 @@ st.markdown('<div style="text-align:right; margin-top: -12px; margin-bottom: 40p
 # TOP NAV (functional tabs)
 # =============================================================================
 # Center the tabs
-nav_cols = st.columns([4, 1.2, 1.2, 1.2, 4])
+nav_cols = st.columns([3, 1.3, 1.6, 1.3, 3])
 for idx, view_name in enumerate(["Overview","Forecasting","Sentiment"]):
     with nav_cols[idx+1]:
         is_active = st.session_state.active_view == view_name
@@ -842,11 +846,13 @@ elif company:
         mcap = stock_info.get("market_cap", 0)
         mcap_str = f"${mcap/1e12:.2f}T" if mcap >= 1e12 else f"${mcap/1e9:.1f}B" if mcap >= 1e9 else f"${mcap/1e6:.0f}M" if mcap >= 1e6 else "—"
         pe = stock_info.get("pe_ratio", 0)
-        pe_str = f"{pe:.1f}x" if pe else "—"
-        pe_color = "#419577" if (0 < pe <= 25) else "#ec4242" if pe > 25 else "#7a7a7a"
+        pe_cls = "color-green" if (0 < pe <= 25) else "color-red" if pe > 25 else "color-gray"
+        pe_str = f'<span class="{pe_cls}" style="font-weight:700;">{pe:.1f}x</span>' if pe else "—"
         price_str = f"${curr_price:,.2f}" if curr_price else "—"
-        pct_str = f"{'▲' if pct_6m and pct_6m >= 0 else '▼'} {abs(pct_6m):.2f}% (6M)" if pct_6m is not None else ""
-        pct_color = "#419577" if pct_6m and pct_6m >= 0 else "#ec4242"
+        pct_cls = "color-green" if pct_6m is not None and pct_6m >= 0 else "color-red"
+        _arrow = "▲" if pct_6m is not None and pct_6m >= 0 else "▼"
+        _pct_val = f"{_arrow} {abs(pct_6m):.2f}%" if pct_6m is not None else ""
+        pct_str = f'<span class="{pct_cls}" style="font-weight:700;">{_pct_val}</span> (6M)' if pct_6m is not None else ""
 
         ticker_badge = f'<span style="background:#F5D649;color:#2D3436;font-size:11px;font-weight:800;padding:3px 10px;border-radius:20px;letter-spacing:0.05em;">{ticker_symbol}</span>' if ticker_symbol else ""
         sector_badge = f'<span style="background:rgba(65,149,119,0.1);color:#419577;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;border:1px solid rgba(65,149,119,0.25);">{sector}</span>' if sector else ""
@@ -874,10 +880,10 @@ elif company:
                 <div style="flex-shrink:0;text-align:right;border-left:1px solid #E0D5C7;padding-left:28px;min-width:130px;">
                     <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:#7a7a7a;margin-bottom:4px;">Live Price</div>
                     <div style="font-size:28px;font-weight:800;font-family:Manrope,sans-serif;color:#2D3436!important;line-height:1;">{price_str}</div>
-                    <div style="font-size:12px;font-weight:600;color:{pct_color}!important;margin-top:4px;">{pct_str}</div>
+                    <div style="font-size:12px;font-weight:600;color:#7a7a7a;margin-top:4px;">{pct_str}</div>
                     <div style="margin-top:16px;display:flex;flex-direction:column;gap:6px;">
-                        <div><span style="font-size:10px;color:#7a7a7a;text-transform:uppercase;letter-spacing:0.05em;">Mkt Cap</span><br><span style="font-size:14px;font-weight:700;color:#2D3436!important;">{mcap_str}</span></div>
-                        <div><span style="font-size:10px;color:#7a7a7a;text-transform:uppercase;letter-spacing:0.05em;">P/E Ratio</span><br><span style="font-size:14px;font-weight:700;color:{pe_color}!important;">{pe_str}</span></div>
+                        <div><span style="font-size:10px;color:#7a7a7a;text-transform:uppercase;letter-spacing:0.05em;">Mkt Cap</span><br><span style="font-size:14px;font-weight:700;color:#2D3436;">{mcap_str}</span></div>
+                        <div><span style="font-size:10px;color:#7a7a7a;text-transform:uppercase;letter-spacing:0.05em;">P/E Ratio</span><br><span style="font-size:14px;font-weight:700;">{pe_str}</span></div>
                     </div>
                 </div>
             </div>
@@ -900,23 +906,25 @@ elif company:
         vm = re.search(r"Volatility Index:\s*(LOW|MEDIUM|HIGH)",alpha_data,re.I)
         if sm: signal = sm.group(1).upper()
         if vm: volatility = vm.group(1).upper()
-        vc = vol_color(volatility)
-        sc = sig_color(signal)
+        
+        s_cls = "color-green" if score >= 60 else "color-red" if score <= 40 else "color-gray"
+        v_cls = "color-green" if volatility=="LOW" else "color-red" if volatility=="HIGH" else "color-gray"
+        sig_cls = "color-green" if signal in ("ACCUMULATE","BUY") else "color-red" if signal in ("REDUCE","SELL") else "color-gray"
 
         # AI Signal metrics row — flush under the profile card
         st.markdown(f"""
         <div style="background:#FFFFFF;border:1px solid #E0D5C7;border-top:none;border-radius:0 0 16px 16px;padding:16px 32px;margin-bottom:28px;display:flex;gap:0;border-top:1px solid #E0D5C7;margin-top:-1px;">
             <div style="flex:1;display:flex;flex-direction:column;border-right:1px solid #E0D5C7;padding-right:24px;">
                 <span style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:#7a7a7a;">AI Sentiment Score</span>
-                <span style="font-size:22px;font-weight:700;font-family:Manrope,sans-serif;color:#419577!important;">{score} <span style="font-size:13px;color:#7a7a7a;font-weight:400;">/ 100</span></span>
+                <span class="{s_cls}" style="font-size:22px;font-weight:700;font-family:Manrope,sans-serif;">{score} <span style="font-size:13px;color:#7a7a7a;font-weight:400;">/ 100</span></span>
             </div>
             <div style="flex:1;display:flex;flex-direction:column;border-right:1px solid #E0D5C7;padding:0 24px;">
                 <span style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:#7a7a7a;">Volatility Index</span>
-                <span style="font-size:22px;font-weight:700;font-family:Manrope,sans-serif;color:{vc}!important;">{volatility}</span>
+                <span class="{v_cls}" style="font-size:22px;font-weight:700;font-family:Manrope,sans-serif;">{volatility}</span>
             </div>
             <div style="flex:1;display:flex;flex-direction:column;padding-left:24px;">
                 <span style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:#7a7a7a;">Top Signal</span>
-                <span style="font-size:22px;font-weight:700;font-family:Manrope,sans-serif;color:{sc}!important;">{signal}</span>
+                <span class="{sig_cls}" style="font-size:22px;font-weight:700;font-family:Manrope,sans-serif;">{signal}</span>
             </div>
             <div style="flex-shrink:0;display:flex;align-items:center;padding-left:24px;border-left:1px solid #E0D5C7;">
                 <span style="font-size:10px;color:#7a7a7a;font-weight:600;text-transform:uppercase;">TASK ID</span>&nbsp;
