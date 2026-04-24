@@ -34,7 +34,7 @@ def fetch_trending_news():
     key = os.getenv("TAVILY_API_KEY")
     if not key: return []
     try:
-        r = TavilyClient(api_key=key).search(query="latest financial markets news stocks bonds crypto energy semiconductors",search_depth="basic",max_results=3)
+        r = TavilyClient(api_key=key).search(query="latest financial markets news stocks bonds crypto energy semiconductors",search_depth="basic",max_results=6)
         items = []
         for x in r.get("results",[]):
             t = x.get("title",""); cat="MARKETS"
@@ -257,6 +257,11 @@ p,span,div,.stMarkdown{color:#2D3436!important;}
 div[data-testid="stVerticalBlockBorderWrapper"]{background-color:#FFFFFF!important;border:1px solid #E0D5C7!important;border-radius:8px!important;}
 
 /* Chat Input */
+[data-testid="stBottom"] {
+    position: static !important;
+    padding-bottom: 20px;
+    background: transparent !important;
+}
 [data-testid="stChatInput"]{background-color:#FDF5EC!important;border:1px solid #E0D5C7!important;border-radius:16px!important;}
 [data-testid="stChatInput"] input{color:#2D3436!important;}
 [data-testid="stChatInput"] button{background-color:#F5D649!important;border-radius:12px!important;}
@@ -273,7 +278,10 @@ div[data-testid="stVerticalBlockBorderWrapper"]{background-color:#FFFFFF!importa
 .nav-label{font-size:12px;letter-spacing:0.05em;font-weight:600;text-transform:uppercase;}
 
 /* Ticker */
-.ticker-row{display:flex;align-items:center;gap:0;background:#F5D649;border-radius:12px;border:1px solid rgba(0,0,0,0.05);padding:0 24px;height:40px;margin-bottom:32px;overflow:hidden;}
+.color-green, .color-green * { color: #419577 !important; }
+.color-red, .color-red * { color: #ec4242 !important; }
+.color-gray, .color-gray * { color: #7a7a7a !important; }
+.ticker-row{display:flex;align-items:center;gap:0;background:#F5D649;border-radius:12px;border:1px solid rgba(0,0,0,0.05);padding:0 24px;height:60px;margin-bottom:32px;overflow:hidden;}
 .ticker-item{display:flex;align-items:center;gap:8px;padding-right:32px;border-right:1px solid rgba(0,0,0,0.12);margin-right:0;padding-left:32px;}
 .ticker-item:first-child{padding-left:0;}
 .ticker-item:last-child{border-right:none;}
@@ -313,7 +321,7 @@ div[data-testid="stVerticalBlockBorderWrapper"]{background-color:#FFFFFF!importa
 .news-meta{font-size:10px;color:rgba(255,255,255,0.7)!important;margin-top:12px;font-weight:600;}
 
 /* Hero Section */
-.hero-container{height:40vh;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;margin-bottom:20px;margin-top: -20px;}
+.hero-container{height:25vh;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;margin-bottom:20px;margin-top: -40px;}
 .hero-title{font-family:'Manrope',sans-serif;font-size:64px;font-weight:900;margin:0;padding:0;background:linear-gradient(135deg,#419577,#F5AB41);-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:-0.03em;line-height:1.1;}
 .hero-subtitle{color:#7a7a7a!important;font-size:14px;margin:12px 0 0 0;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;}
 
@@ -366,8 +374,10 @@ div[data-testid="stVerticalBlockBorderWrapper"]{background-color:#FFFFFF!importa
 .nav-link-active .nav-label{color:#419577!important;}
 
 /* Streamlit buttons override */
-.stButton>button{background-color:#419577!important;color:#fff!important;border:none!important;font-weight:600!important;border-radius:8px!important;transition:all 0.2s!important;}
-.stButton>button:hover{background-color:#357a62!important;color:#fff!important;transform:translateY(-1px)!important;box-shadow:0 4px 12px rgba(65,149,119,0.3)!important;}
+.stButton>button{background-color:#419577!important;color:#F5D649!important;border:none!important;font-weight:800!important;text-transform:uppercase!important;letter-spacing:0.05em!important;border-radius:8px!important;transition:all 0.2s!important;}
+.stButton>button p{color:#F5D649!important;font-weight:800!important;text-transform:uppercase!important;letter-spacing:0.05em!important;}
+.stButton>button:hover{background-color:#357a62!important;color:#F5D649!important;transform:translateY(-1px)!important;box-shadow:0 4px 12px rgba(65,149,119,0.3)!important;}
+.stButton>button:hover p{color:#F5D649!important;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -393,265 +403,267 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # =============================================================================
-# TOP NAV (functional tabs)
-# =============================================================================
-nav_cols = st.columns([1,1,1,8])
-for idx, view_name in enumerate(["Overview","Forecasting","Sentiment"]):
-    with nav_cols[idx]:
-        is_active = st.session_state.active_view == view_name
-        style = "color:#419577!important;font-weight:700;" if is_active else "color:#7a7a7a!important;"
-        if st.button(view_name, key=f"view_{view_name}", use_container_width=True):
-            st.session_state.active_view = view_name
-            st.rerun()
-
-# =============================================================================
 # TICKER TAPE (REAL-TIME)
 # =============================================================================
 ticker_html = ""
 for i,(lbl,d) in enumerate(ticker_data.items()):
-    c = get_color(d["change"])
+    c_class = "color-green" if d["change"]>0 else "color-red" if d["change"]<0 else "color-gray"
     a = get_arrow(d["change"])
     ps = f"{d['price']:,.2f}" if d['price']>1000 else f"{d['price']:.2f}"
-    ticker_html += f'<div class="ticker-item"><span class="ticker-lbl" style="color:{c}!important;">{lbl}</span><span class="ticker-val" style="color:#ffffff!important;">{ps}</span><span class="ticker-chg" style="color:{c}!important;"><span class="material-symbols-outlined" style="font-size:14px;color:{c}!important;">{a}</span>{abs(d["change"]):.2f}%</span></div>'
+    ticker_html += f'<div class="ticker-item {c_class}"><span class="ticker-lbl {c_class}">{lbl}</span><span class="ticker-val {c_class}">{ps}</span><span class="ticker-chg {c_class}"><span class="material-symbols-outlined {c_class}" style="font-size:14px;">{a}</span>{abs(d["change"]):.2f}%</span></div>'
 st.markdown(f'<div class="ticker-row">{ticker_html}</div>', unsafe_allow_html=True)
 
-# =============================================================================
-# 3-COLUMN LAYOUT (Main, Spacer, News)
-# =============================================================================
-col_main, col_spacer, col_news = st.columns([6.5, 0.5, 3])
+st.markdown("<div style='margin-top: 50px;'></div>", unsafe_allow_html=True)
 
-# --- RIGHT: News Panel ---
-with col_news:
-    for i, news in enumerate(trending_news[:3]):
-        cc = cat_color(news["category"])
-        pexels_data = fetch_pexels_image(get_news_image_query(news["title"]))
-        if pexels_data:
-            img_html = f'<img class="news-img" src="{pexels_data["url"]}" alt="{pexels_data.get("alt","")}" />'
-        else:
-            fallback_grads = ["linear-gradient(135deg,#419577,#FDF5EC,#F5D649)","linear-gradient(135deg,#F5AB41,#FDF5EC,#419577)","linear-gradient(135deg,#F5D649,#FDF5EC,#F5AB41)"]
-            img_html = f'<div class="news-img" style="background:{fallback_grads[i%3]};"></div>'
-            
-        st.markdown(f"""
-        <div class="news-card">
-            <a href="{news['url']}" target="_blank" style="text-decoration: none; display: block; position: absolute; top:0; left:0; width:100%; height:100%; z-index:5;"></a>
-            {img_html}
-            <div class="news-overlay">
-                <span class="news-cat">{news["category"]}</span>
-                <div class="news-title">{news["title"][:65]}</div>
+# --- Trending News Grid (2 rows of 3) ---
+for row in range(2):
+    news_cols = st.columns(3)
+    for col in range(3):
+        idx = row * 3 + col
+        if idx < len(trending_news):
+            news = trending_news[idx]
+            with news_cols[col]:
+                pexels_data = fetch_pexels_image(get_news_image_query(news["title"]))
+                if pexels_data:
+                    img_html = f'<img class="news-img" src="{pexels_data["url"]}" alt="{pexels_data.get("alt","")}" />'
+                else:
+                    fallback_grads = ["linear-gradient(135deg,#419577,#FDF5EC,#F5D649)","linear-gradient(135deg,#F5AB41,#FDF5EC,#419577)","linear-gradient(135deg,#F5D649,#FDF5EC,#F5AB41)"]
+                    img_html = f'<div class="news-img" style="background:{fallback_grads[idx%3]};"></div>'
+                    
+                st.markdown(f"""
+                <div class="news-card">
+                    <a href="{news['url']}" target="_blank" style="text-decoration: none; display: block; position: absolute; top:0; left:0; width:100%; height:100%; z-index:5;"></a>
+                    {img_html}
+                    <div class="news-overlay">
+                        <span class="news-cat">{news["category"]}</span>
+                        <div class="news-title">{news["title"][:65]}</div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+st.markdown('<div style="text-align:right; margin-top: -12px; margin-bottom: 40px; opacity:0.3;"><a href="https://www.pexels.com" target="_blank"><img src="https://images.pexels.com/lib/api/pexels-white.png" style="width:40px;" /></a></div>', unsafe_allow_html=True)
+
+# =============================================================================
+# TOP NAV (functional tabs)
+# =============================================================================
+# Center the tabs
+nav_cols = st.columns([4, 1.2, 1.2, 1.2, 4])
+for idx, view_name in enumerate(["Overview","Forecasting","Sentiment"]):
+    with nav_cols[idx+1]:
+        is_active = st.session_state.active_view == view_name
+        if st.button(view_name, key=f"view_{view_name}", use_container_width=True):
+            st.session_state.active_view = view_name
+            st.rerun()
+
+st.markdown("<div style='margin-top: 50px;'></div>", unsafe_allow_html=True)
+
+# --- Search Box (Agent) ---
+company = st.chat_input("Analyze the impact of a company's market position...")
+
+# =========================================================================
+# VIEW ROUTING: Overview / Forecasting / Sentiment
+# =========================================================================
+if st.session_state.active_view == "Forecasting":
+    st.markdown('<span class="exec-badge" style="background:rgba(245,171,65,0.1)!important;color:#F5AB41!important;border-color:rgba(245,171,65,0.3)!important;">FORECASTING ENGINE</span>', unsafe_allow_html=True)
+    st.markdown('<h1 style="font-size:30px;font-weight:700;font-family:Manrope,sans-serif;color:#419577!important;margin-top:12px;">Market Forecasting & Predictive Models</h1>', unsafe_allow_html=True)
+    st.markdown('<p style="color:#5a5a5a!important; margin-bottom: 24px;">AI-driven forecasts based on historical patterns, options flow, and macroeconomic indicators.</p>', unsafe_allow_html=True)
+    
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.markdown('<div style="padding:20px;background:#FFFFFF;border:1px solid #E0D5C7;border-radius:12px;text-align:center;"><span style="color:#7a7a7a;font-size:14px;">Probability of Rate Cut (Q3)</span><h2 style="color:#419577;margin:8px 0;font-size:32px;">68.4%</h2><span style="color:#419577;font-size:12px;">▲ 4.2% from last week</span></div>', unsafe_allow_html=True)
+    with c2:
+        st.markdown('<div style="padding:20px;background:#FFFFFF;border:1px solid #E0D5C7;border-radius:12px;text-align:center;"><span style="color:#7a7a7a;font-size:14px;">Market Volatility Risk</span><h2 style="color:#F5AB41;margin:8px 0;font-size:32px;">ELEVATED</h2><span style="color:#F5AB41;font-size:12px;">VIX approaching 20.0 level</span></div>', unsafe_allow_html=True)
+    with c3:
+        st.markdown('<div style="padding:20px;background:#FFFFFF;border:1px solid #E0D5C7;border-radius:12px;text-align:center;"><span style="color:#7a7a7a;font-size:14px;">S&P 500 Year-End Target</span><h2 style="color:#2D3436;margin:8px 0;font-size:32px;">5,850</h2><span style="color:#7a7a7a;font-size:12px;">Consensus Base Case</span></div>', unsafe_allow_html=True)
+    
+    st.markdown('<h2 style="font-size:20px;font-weight:600;color:#419577;margin-top:32px;border-bottom:1px solid #E0D5C7;padding-bottom:12px;">Sector Outlook (Next 30 Days)</h2>', unsafe_allow_html=True)
+    sectors = [
+        ("Technology", "Bullish", 78, "#419577"),
+        ("Energy", "Neutral", 45, "#F5D649"),
+        ("Financials", "Bullish", 62, "#419577"),
+        ("Consumer Discretionary", "Bearish", 28, "#ec4242"),
+        ("Healthcare", "Neutral", 50, "#F5D649")
+    ]
+    for sec, dir, val, col in sectors:
+        st.markdown(f'''
+        <div style="display:flex;align-items:center;margin:16px 0;">
+            <div style="width:180px;color:#5a5a5a;font-weight:500;">{sec}</div>
+            <div style="flex-grow:1;height:8px;background:#E0D5C7;border-radius:4px;margin:0 16px;overflow:hidden;">
+                <div style="width:{val}%;height:100%;background:{col};border-radius:4px;"></div>
+            </div>
+            <div style="width:80px;text-align:right;color:{col};font-weight:700;">{dir}</div>
+        </div>
+        ''', unsafe_allow_html=True)
+        
+    st.markdown('<h2 style="font-size:20px;font-weight:600;color:#419577;margin-top:32px;border-bottom:1px solid #E0D5C7;padding-bottom:12px;">Asset Signals</h2>', unsafe_allow_html=True)
+    for lbl, d in ticker_data.items():
+        direction = "ACCUMULATE" if d["change"] > 0 else "REDUCE" if d["change"] < 0 else "HOLD"
+        color = get_color(d["change"])
+        st.markdown(f'<div style="padding:16px;margin-bottom:8px;background:#FFFFFF;border:1px solid #E0D5C7;border-radius:8px;display:flex;justify-content:space-between;align-items:center;"><div style="display:flex;align-items:center;gap:12px;"><strong style="color:#2D3436!important;font-size:16px;width:100px;">{lbl}</strong><span style="color:#7a7a7a!important;font-size:14px;">Spot: {d["price"]:,.2f}</span></div><div><span style="color:{color}!important;font-weight:700;background:{color}20;padding:4px 12px;border-radius:4px;font-size:12px;">{direction} ({d["change"]:+.2f}%)</span></div></div>', unsafe_allow_html=True)
+
+elif st.session_state.active_view == "Sentiment":
+    st.markdown('<span class="exec-badge" style="background:rgba(245,214,73,0.1)!important;color:#F5D649!important;border-color:rgba(245,214,73,0.3)!important;">SENTIMENT SCANNER</span>', unsafe_allow_html=True)
+    st.markdown('<h1 style="font-size:30px;font-weight:700;font-family:Manrope,sans-serif;color:#419577!important;margin-top:12px;">Global Market Sentiment Matrix</h1>', unsafe_allow_html=True)
+    st.markdown('<p style="color:#5a5a5a!important; margin-bottom: 24px;">Real-time NLP sentiment extraction across global financial media, social chatter, and institutional notes.</p>', unsafe_allow_html=True)
+    st.markdown('''
+    <div style="display:flex;gap:16px;margin-bottom:32px;">
+        <div style="flex:1;background:#FFFFFF;border:1px solid #E0D5C7;border-radius:12px;padding:20px;">
+            <div style="color:#7a7a7a;font-size:14px;margin-bottom:12px;">Overall Macro Sentiment</div>
+            <div style="display:flex;align-items:center;gap:16px;">
+                <h2 style="color:#419577;margin:0;font-size:36px;">58/100</h2>
+                <span style="background:rgba(65,149,119,0.1);color:#419577;padding:4px 8px;border-radius:4px;font-weight:600;font-size:14px;">CAUTIOUSLY OPTIMISTIC</span>
             </div>
         </div>
-        """, unsafe_allow_html=True)
-
-    # Subtle Pexels attribution
-    st.markdown('<div style="text-align:right; margin-top: -12px; opacity:0.3;"><a href="https://www.pexels.com" target="_blank"><img src="https://images.pexels.com/lib/api/pexels-white.png" style="width:40px;" /></a></div>', unsafe_allow_html=True)
-
-# --- CENTER: Main Terminal ---
-with col_main:
-    st.markdown("<div style='margin-top: 32px;'></div>", unsafe_allow_html=True)
-    company = st.chat_input("Analyze the impact of a company's market position...")
-
-    # =========================================================================
-    # VIEW ROUTING: Overview / Forecasting / Sentiment
-    # =========================================================================
-    if st.session_state.active_view == "Forecasting":
-        st.markdown('<span class="exec-badge" style="background:rgba(245,171,65,0.1)!important;color:#F5AB41!important;border-color:rgba(245,171,65,0.3)!important;">FORECASTING ENGINE</span>', unsafe_allow_html=True)
-        st.markdown('<h1 style="font-size:30px;font-weight:700;font-family:Manrope,sans-serif;color:#419577!important;margin-top:12px;">Market Forecasting & Predictive Models</h1>', unsafe_allow_html=True)
-        st.markdown('<p style="color:#5a5a5a!important; margin-bottom: 24px;">AI-driven forecasts based on historical patterns, options flow, and macroeconomic indicators.</p>', unsafe_allow_html=True)
-        
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            st.markdown('<div style="padding:20px;background:#FFFFFF;border:1px solid #E0D5C7;border-radius:12px;text-align:center;"><span style="color:#7a7a7a;font-size:14px;">Probability of Rate Cut (Q3)</span><h2 style="color:#419577;margin:8px 0;font-size:32px;">68.4%</h2><span style="color:#419577;font-size:12px;">▲ 4.2% from last week</span></div>', unsafe_allow_html=True)
-        with c2:
-            st.markdown('<div style="padding:20px;background:#FFFFFF;border:1px solid #E0D5C7;border-radius:12px;text-align:center;"><span style="color:#7a7a7a;font-size:14px;">Market Volatility Risk</span><h2 style="color:#F5AB41;margin:8px 0;font-size:32px;">ELEVATED</h2><span style="color:#F5AB41;font-size:12px;">VIX approaching 20.0 level</span></div>', unsafe_allow_html=True)
-        with c3:
-            st.markdown('<div style="padding:20px;background:#FFFFFF;border:1px solid #E0D5C7;border-radius:12px;text-align:center;"><span style="color:#7a7a7a;font-size:14px;">S&P 500 Year-End Target</span><h2 style="color:#2D3436;margin:8px 0;font-size:32px;">5,850</h2><span style="color:#7a7a7a;font-size:12px;">Consensus Base Case</span></div>', unsafe_allow_html=True)
-        
-        st.markdown('<h2 style="font-size:20px;font-weight:600;color:#419577;margin-top:32px;border-bottom:1px solid #E0D5C7;padding-bottom:12px;">Sector Outlook (Next 30 Days)</h2>', unsafe_allow_html=True)
-        sectors = [
-            ("Technology", "Bullish", 78, "#419577"),
-            ("Energy", "Neutral", 45, "#F5D649"),
-            ("Financials", "Bullish", 62, "#419577"),
-            ("Consumer Discretionary", "Bearish", 28, "#ec4242"),
-            ("Healthcare", "Neutral", 50, "#F5D649")
-        ]
-        for sec, dir, val, col in sectors:
-            st.markdown(f'''
-            <div style="display:flex;align-items:center;margin:16px 0;">
-                <div style="width:180px;color:#5a5a5a;font-weight:500;">{sec}</div>
-                <div style="flex-grow:1;height:8px;background:#E0D5C7;border-radius:4px;margin:0 16px;overflow:hidden;">
-                    <div style="width:{val}%;height:100%;background:{col};border-radius:4px;"></div>
-                </div>
-                <div style="width:80px;text-align:right;color:{col};font-weight:700;">{dir}</div>
+        <div style="flex:1;background:#FFFFFF;border:1px solid #E0D5C7;border-radius:12px;padding:20px;">
+            <div style="color:#7a7a7a;font-size:14px;margin-bottom:12px;">Fear & Greed Index</div>
+            <div style="display:flex;align-items:center;gap:16px;">
+                <h2 style="color:#F5AB41;margin:0;font-size:36px;">62</h2>
+                <span style="background:rgba(245,171,65,0.1);color:#F5AB41;padding:4px 8px;border-radius:4px;font-weight:600;font-size:14px;">GREED</span>
             </div>
-            ''', unsafe_allow_html=True)
-            
-        st.markdown('<h2 style="font-size:20px;font-weight:600;color:#419577;margin-top:32px;border-bottom:1px solid #E0D5C7;padding-bottom:12px;">Asset Signals</h2>', unsafe_allow_html=True)
-        for lbl, d in ticker_data.items():
-            direction = "ACCUMULATE" if d["change"] > 0 else "REDUCE" if d["change"] < 0 else "HOLD"
-            color = get_color(d["change"])
-            st.markdown(f'<div style="padding:16px;margin-bottom:8px;background:#FFFFFF;border:1px solid #E0D5C7;border-radius:8px;display:flex;justify-content:space-between;align-items:center;"><div style="display:flex;align-items:center;gap:12px;"><strong style="color:#2D3436!important;font-size:16px;width:100px;">{lbl}</strong><span style="color:#7a7a7a!important;font-size:14px;">Spot: {d["price"]:,.2f}</span></div><div><span style="color:{color}!important;font-weight:700;background:{color}20;padding:4px 12px;border-radius:4px;font-size:12px;">{direction} ({d["change"]:+.2f}%)</span></div></div>', unsafe_allow_html=True)
+        </div>
+    </div>
+    ''', unsafe_allow_html=True)
 
-    elif st.session_state.active_view == "Sentiment":
-        st.markdown('<span class="exec-badge" style="background:rgba(245,214,73,0.1)!important;color:#F5D649!important;border-color:rgba(245,214,73,0.3)!important;">SENTIMENT SCANNER</span>', unsafe_allow_html=True)
-        st.markdown('<h1 style="font-size:30px;font-weight:700;font-family:Manrope,sans-serif;color:#419577!important;margin-top:12px;">Global Market Sentiment Matrix</h1>', unsafe_allow_html=True)
-        st.markdown('<p style="color:#5a5a5a!important; margin-bottom: 24px;">Real-time NLP sentiment extraction across global financial media, social chatter, and institutional notes.</p>', unsafe_allow_html=True)
-        st.markdown('''
-        <div style="display:flex;gap:16px;margin-bottom:32px;">
-            <div style="flex:1;background:#FFFFFF;border:1px solid #E0D5C7;border-radius:12px;padding:20px;">
-                <div style="color:#7a7a7a;font-size:14px;margin-bottom:12px;">Overall Macro Sentiment</div>
-                <div style="display:flex;align-items:center;gap:16px;">
-                    <h2 style="color:#419577;margin:0;font-size:36px;">58/100</h2>
-                    <span style="background:rgba(65,149,119,0.1);color:#419577;padding:4px 8px;border-radius:4px;font-weight:600;font-size:14px;">CAUTIOUSLY OPTIMISTIC</span>
-                </div>
-            </div>
-            <div style="flex:1;background:#FFFFFF;border:1px solid #E0D5C7;border-radius:12px;padding:20px;">
-                <div style="color:#7a7a7a;font-size:14px;margin-bottom:12px;">Fear & Greed Index</div>
-                <div style="display:flex;align-items:center;gap:16px;">
-                    <h2 style="color:#F5AB41;margin:0;font-size:36px;">62</h2>
-                    <span style="background:rgba(245,171,65,0.1);color:#F5AB41;padding:4px 8px;border-radius:4px;font-weight:600;font-size:14px;">GREED</span>
-                </div>
+    st.markdown('<h2 style="font-size:20px;font-weight:600;color:#419577;margin-top:32px;border-bottom:1px solid #E0D5C7;padding-bottom:12px;">Live News Sentiment</h2>', unsafe_allow_html=True)
+    for news in trending_news[:5]:
+        sent = insight_sentiment(news["title"])
+        icon = "check_circle" if sent=="positive" else "warning"
+        ic = "#419577" if sent=="positive" else "#ec4242"
+        st.markdown(f'''
+        <div style="background:rgba(253,245,236,0.5);border-left:4px solid {ic};padding:16px;margin-bottom:12px;border-radius:0 8px 8px 0;display:flex;gap:16px;align-items:flex-start;">
+            <span class="material-symbols-outlined" style="color:{ic}!important;font-size:24px;">{icon}</span>
+            <div>
+                <span style="color:#7a7a7a;font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;">{news["category"]}</span>
+                <p style="color:#2D3436;margin:4px 0 0 0;font-size:15px;line-height:1.5;">{news["title"]}</p>
             </div>
         </div>
         ''', unsafe_allow_html=True)
 
-        st.markdown('<h2 style="font-size:20px;font-weight:600;color:#419577;margin-top:32px;border-bottom:1px solid #E0D5C7;padding-bottom:12px;">Live News Sentiment</h2>', unsafe_allow_html=True)
-        for news in trending_news[:5]:
-            sent = insight_sentiment(news["title"])
-            icon = "check_circle" if sent=="positive" else "warning"
-            ic = "#419577" if sent=="positive" else "#ec4242"
+elif company:
+    now = datetime.now()
+    is_company = is_company_query(company)
+    mode_label = "Company Analysis" if is_company else "Topic Intelligence"
+    st.session_state.active_view = "Overview"
+    task_id = abs(hash(company + now.isoformat())) % 10000
+
+    if is_company:
+        # =================================================================
+        # COMPANY MODE — Full Alpha + Beta + Judge pipeline
+        # =================================================================
+        st.markdown(f'<div style="margin-bottom:16px;"><span class="exec-badge">AI AGENT EXECUTION</span><span class="task-id">TASK ID: #QT-{task_id}</span></div>', unsafe_allow_html=True)
+
+        # Company Image from Unsplash
+        company_img = fetch_unsplash_image(company, "logo")
+        initial = company.strip()[0].upper()
+        if company_img:
+            logo_html = f'<img class="company-logo" src="{company_img["url"]}" alt="{company}" />'
+        else:
+            logo_html = f'<div class="company-initial">{initial}</div>'
+        st.markdown(f'<div class="company-header">{logo_html}<h1 style="font-size:30px;font-weight:700;font-family:Manrope,sans-serif;color:#419577!important;letter-spacing:-0.02em;line-height:38px;margin:0;">Market Analysis: {company}</h1></div>', unsafe_allow_html=True)
+
+        with st.status(f"Scanning Bloomberg, Reuters, Financial Times for {company}...", expanded=True) as status:
+            st.write(">> INITIALIZING ALPHA NODE (QUANT)...")
+            alpha_data = run_quantitative_analysis(company)
+            st.write(">> INITIALIZING BETA NODE (QUAL)...")
+            beta_data = run_qualitative_analysis(company)
+            st.write(">> ROUTING TO NEURAL JUDGE FOR SYNTHESIS...")
+            final_report = evaluate_reports(company, alpha_data, beta_data)
+            status.update(label="ANALYSIS COMPILED", state="complete")
+
+        score = parse_score(alpha_data)
+        signal = compute_signal(score)
+        volatility = compute_vol(score)
+        sm = re.search(r"Top Signal:\s*(BUY|SELL|HOLD|ACCUMULATE|REDUCE)",alpha_data,re.I)
+        vm = re.search(r"Volatility Index:\s*(LOW|MEDIUM|HIGH)",alpha_data,re.I)
+        if sm: signal = sm.group(1).upper()
+        if vm: volatility = vm.group(1).upper()
+        vc = vol_color(volatility)
+        sc = sig_color(signal)
+
+        st.markdown(f"""
+        <div class="metrics-row">
+            <div class="metric-col"><span class="metric-label">Sentiment Score</span><span class="metric-value" style="color:#419577!important;">{score} / 100</span></div>
+            <div class="metric-col"><span class="metric-label">Volatility Index</span><span class="metric-value" style="color:{vc}!important;">{volatility}</span></div>
+            <div class="metric-col"><span class="metric-label">Top Signal</span><span class="metric-value" style="color:{sc}!important;">{signal}</span></div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        st.markdown('<h2 class="insight-title" style="margin-top:32px;">Key Executive Insights</h2>', unsafe_allow_html=True)
+        insights = parse_insights(beta_data)
+        if insights:
+            for ins in insights:
+                icon = "check_circle" if ins["sentiment"]=="positive" else "warning"
+                ic = "#419577" if ins["sentiment"]=="positive" else "#ec4242"
+                st.markdown(f'<div class="insight-item"><span class="material-symbols-outlined" style="color:{ic}!important;flex-shrink:0;">{icon}</span><p class="insight-text"><span class="insight-bold">{ins["title"]}:</span> {ins["body"]}</p></div>', unsafe_allow_html=True)
+        else:
+            st.markdown(beta_data)
+
+        st.markdown('<div style="height:24px;"></div>', unsafe_allow_html=True)
+        catalyst_text, risk_text = extract_catalyst_risk(company, alpha_data, beta_data)
+        c1, c2 = st.columns(2)
+        with c1:
+            bars = "".join([f'<div class="mini-bar" style="background:#419577;height:{20+i*13}%;"></div>' for i in range(6)])
+            st.markdown(f'<div style="padding:24px;background:#FFFFFF;border:1px solid #E0D5C7;border-radius:12px;"><p class="metric-label" style="margin-bottom:16px;">Upside Catalyst</p><div class="mini-chart" style="background:linear-gradient(to top right,rgba(65,149,119,0.15),transparent);">{bars}</div><p style="font-size:12px;color:#5a5a5a!important;">{catalyst_text}</p></div>', unsafe_allow_html=True)
+        with c2:
+            bars = "".join([f'<div class="mini-bar" style="background:#ec4242;height:{100-i*15}%;"></div>' for i in range(6)])
+            st.markdown(f'<div style="padding:24px;background:#FFFFFF;border:1px solid #E0D5C7;border-radius:12px;"><p class="metric-label" style="margin-bottom:16px;">Risk Exposure</p><div class="mini-chart" style="background:linear-gradient(to top right,rgba(236,66,66,0.15),transparent);">{bars}</div><p style="font-size:12px;color:#5a5a5a!important;">{risk_text}</p></div>', unsafe_allow_html=True)
+
+        st.markdown('<div style="height:32px;"></div>', unsafe_allow_html=True)
+
+        with st.expander("📄 Full Alpha Report (Quantitative)"):
+            st.markdown(alpha_data)
+        with st.expander("📄 Full Beta Report (Qualitative)"):
+            unsplash_img = fetch_unsplash_image(company, "graph")
+            if unsplash_img:
+                st.markdown(f'''
+                <div style="margin-bottom: 24px;">
+                    <h3 style="color:#419577; font-size: 16px; margin: 0 0 16px 0;">Market Graphs &amp; Charts</h3>
+                    <img src="{unsplash_img["url"]}" style="width:100%; max-height: 250px; object-fit: cover; border-radius: 8px; margin-bottom: 8px;" />
+                    <p style="color:#7a7a7a; font-size:12px; text-align:right;">Photo by <a href="{unsplash_img["photo_url"]}" target="_blank" style="color:#7a7a7a;">{unsplash_img["photographer"]}</a> on Unsplash</p>
+                </div>
+                ''', unsafe_allow_html=True)
+            
+            # Mock Graph for Qualitative sentiment
+            bars = "".join([f'<div style="background:{col};height:{h}px;width:12px;border-radius:2px;"></div>' for col, h in zip(["#ec4242","#F5AB41","#F5D649","#419577","#419577"], [40, 60, 30, 80, 100])])
             st.markdown(f'''
-            <div style="background:rgba(253,245,236,0.5);border-left:4px solid {ic};padding:16px;margin-bottom:12px;border-radius:0 8px 8px 0;display:flex;gap:16px;align-items:flex-start;">
-                <span class="material-symbols-outlined" style="color:{ic}!important;font-size:24px;">{icon}</span>
-                <div>
-                    <span style="color:#7a7a7a;font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;">{news["category"]}</span>
-                    <p style="color:#2D3436;margin:4px 0 0 0;font-size:15px;line-height:1.5;">{news["title"]}</p>
+            <div style="background:#FFFFFF; padding: 16px; border-radius: 8px; border: 1px solid #E0D5C7; margin-bottom: 24px;">
+                <h3 style="color:#419577; font-size: 16px; margin: 0 0 16px 0;">Sentiment Trend (30 Days)</h3>
+                <div style="display:flex; align-items:flex-end; gap:8px; height: 100px; padding-bottom: 8px; border-bottom: 1px solid #E0D5C7;">
+                    {bars}
                 </div>
             </div>
             ''', unsafe_allow_html=True)
 
-    elif company:
-        now = datetime.now()
-        is_company = is_company_query(company)
-        mode_label = "Company Analysis" if is_company else "Topic Intelligence"
-        st.session_state.active_view = "Overview"
-        task_id = abs(hash(company + now.isoformat())) % 10000
-
-        if is_company:
-            # =================================================================
-            # COMPANY MODE — Full Alpha + Beta + Judge pipeline
-            # =================================================================
-            st.markdown(f'<div style="margin-bottom:16px;"><span class="exec-badge">AI AGENT EXECUTION</span><span class="task-id">TASK ID: #QT-{task_id}</span></div>', unsafe_allow_html=True)
-
-            # Company Image from Unsplash
-            company_img = fetch_unsplash_image(company, "logo")
-            initial = company.strip()[0].upper()
-            if company_img:
-                logo_html = f'<img class="company-logo" src="{company_img["url"]}" alt="{company}" />'
-            else:
-                logo_html = f'<div class="company-initial">{initial}</div>'
-            st.markdown(f'<div class="company-header">{logo_html}<h1 style="font-size:30px;font-weight:700;font-family:Manrope,sans-serif;color:#419577!important;letter-spacing:-0.02em;line-height:38px;margin:0;">Market Analysis: {company}</h1></div>', unsafe_allow_html=True)
-
-            with st.status(f"Scanning Bloomberg, Reuters, Financial Times for {company}...", expanded=True) as status:
-                st.write(">> INITIALIZING ALPHA NODE (QUANT)...")
-                alpha_data = run_quantitative_analysis(company)
-                st.write(">> INITIALIZING BETA NODE (QUAL)...")
-                beta_data = run_qualitative_analysis(company)
-                st.write(">> ROUTING TO NEURAL JUDGE FOR SYNTHESIS...")
-                final_report = evaluate_reports(company, alpha_data, beta_data)
-                status.update(label="ANALYSIS COMPILED", state="complete")
-
-            score = parse_score(alpha_data)
-            signal = compute_signal(score)
-            volatility = compute_vol(score)
-            sm = re.search(r"Top Signal:\s*(BUY|SELL|HOLD|ACCUMULATE|REDUCE)",alpha_data,re.I)
-            vm = re.search(r"Volatility Index:\s*(LOW|MEDIUM|HIGH)",alpha_data,re.I)
-            if sm: signal = sm.group(1).upper()
-            if vm: volatility = vm.group(1).upper()
-            vc = vol_color(volatility)
-            sc = sig_color(signal)
-
-            st.markdown(f"""
-            <div class="metrics-row">
-                <div class="metric-col"><span class="metric-label">Sentiment Score</span><span class="metric-value" style="color:#419577!important;">{score} / 100</span></div>
-                <div class="metric-col"><span class="metric-label">Volatility Index</span><span class="metric-value" style="color:{vc}!important;">{volatility}</span></div>
-                <div class="metric-col"><span class="metric-label">Top Signal</span><span class="metric-value" style="color:{sc}!important;">{signal}</span></div>
-            </div>
-            """, unsafe_allow_html=True)
-
-            st.markdown('<h2 class="insight-title" style="margin-top:32px;">Key Executive Insights</h2>', unsafe_allow_html=True)
-            insights = parse_insights(beta_data)
-            if insights:
-                for ins in insights:
-                    icon = "check_circle" if ins["sentiment"]=="positive" else "warning"
-                    ic = "#419577" if ins["sentiment"]=="positive" else "#ec4242"
-                    st.markdown(f'<div class="insight-item"><span class="material-symbols-outlined" style="color:{ic}!important;flex-shrink:0;">{icon}</span><p class="insight-text"><span class="insight-bold">{ins["title"]}:</span> {ins["body"]}</p></div>', unsafe_allow_html=True)
-            else:
-                st.markdown(beta_data)
-
-            st.markdown('<div style="height:24px;"></div>', unsafe_allow_html=True)
-            catalyst_text, risk_text = extract_catalyst_risk(company, alpha_data, beta_data)
-            c1, c2 = st.columns(2)
-            with c1:
-                bars = "".join([f'<div class="mini-bar" style="background:#419577;height:{20+i*13}%;"></div>' for i in range(6)])
-                st.markdown(f'<div style="padding:24px;background:#FFFFFF;border:1px solid #E0D5C7;border-radius:12px;"><p class="metric-label" style="margin-bottom:16px;">Upside Catalyst</p><div class="mini-chart" style="background:linear-gradient(to top right,rgba(65,149,119,0.15),transparent);">{bars}</div><p style="font-size:12px;color:#5a5a5a!important;">{catalyst_text}</p></div>', unsafe_allow_html=True)
-            with c2:
-                bars = "".join([f'<div class="mini-bar" style="background:#ec4242;height:{100-i*15}%;"></div>' for i in range(6)])
-                st.markdown(f'<div style="padding:24px;background:#FFFFFF;border:1px solid #E0D5C7;border-radius:12px;"><p class="metric-label" style="margin-bottom:16px;">Risk Exposure</p><div class="mini-chart" style="background:linear-gradient(to top right,rgba(236,66,66,0.15),transparent);">{bars}</div><p style="font-size:12px;color:#5a5a5a!important;">{risk_text}</p></div>', unsafe_allow_html=True)
-
-            with st.expander("📄 Full Alpha Report (Quantitative)"):
-                st.markdown(alpha_data)
-            with st.expander("📄 Full Beta Report (Qualitative)"):
-                unsplash_img = fetch_unsplash_image(company, "graph")
-                if unsplash_img:
-                    st.markdown(f'''
-                    <div style="margin-bottom: 24px;">
-                        <h3 style="color:#419577; font-size: 16px; margin: 0 0 16px 0;">Market Graphs &amp; Charts</h3>
-                        <img src="{unsplash_img["url"]}" style="width:100%; max-height: 250px; object-fit: cover; border-radius: 8px; margin-bottom: 8px;" />
-                        <p style="color:#7a7a7a; font-size:12px; text-align:right;">Photo by <a href="{unsplash_img["photo_url"]}" target="_blank" style="color:#7a7a7a;">{unsplash_img["photographer"]}</a> on Unsplash</p>
-                    </div>
-                    ''', unsafe_allow_html=True)
-                
-                # Mock Graph for Qualitative sentiment
-                bars = "".join([f'<div style="background:{col};height:{h}px;width:12px;border-radius:2px;"></div>' for col, h in zip(["#ec4242","#F5AB41","#F5D649","#419577","#419577"], [40, 60, 30, 80, 100])])
-                st.markdown(f'''
-                <div style="background:#FFFFFF; padding: 16px; border-radius: 8px; border: 1px solid #E0D5C7; margin-bottom: 24px;">
-                    <h3 style="color:#419577; font-size: 16px; margin: 0 0 16px 0;">Sentiment Trend (30 Days)</h3>
-                    <div style="display:flex; align-items:flex-end; gap:8px; height: 100px; padding-bottom: 8px; border-bottom: 1px solid #E0D5C7;">
-                        {bars}
-                    </div>
-                </div>
-                ''', unsafe_allow_html=True)
-
-                st.markdown(beta_data)
-            with st.expander("⚖️ Full Judge Synthesis"):
-                st.markdown(final_report)
-
-        else:
-            # =================================================================
-            # TOPIC MODE — Tavily search + single LLM summary
-            # =================================================================
-            st.markdown(f'<div style="margin-bottom:16px;"><span class="exec-badge" style="background:rgba(245,171,65,0.1)!important;color:#F5AB41!important;border-color:rgba(245,171,65,0.3)!important;">TOPIC INTELLIGENCE</span><span class="task-id">TASK ID: #TI-{task_id}</span></div>', unsafe_allow_html=True)
-            st.markdown(f'<h1 style="font-size:30px;font-weight:700;font-family:Manrope,sans-serif;color:#419577!important;letter-spacing:-0.02em;line-height:38px;margin-bottom:16px;">Topic Brief: {company}</h1>', unsafe_allow_html=True)
-
-            with st.status(f"Searching global sources for: {company}...", expanded=True) as status:
-                st.write(">> SCANNING TAVILY KNOWLEDGE BASE...")
-                topic_data = run_topic_analysis(company)
-                status.update(label="TOPIC BRIEF COMPILED", state="complete")
-
-            st.markdown('<h2 class="insight-title" style="margin-top:24px;">Key Insights</h2>', unsafe_allow_html=True)
-            insights = parse_insights(topic_data)
-            if insights:
-                for ins in insights:
-                    icon = "check_circle" if ins["sentiment"]=="positive" else "warning"
-                    ic = "#419577" if ins["sentiment"]=="positive" else "#ec4242"
-                    st.markdown(f'<div class="insight-item"><span class="material-symbols-outlined" style="color:{ic}!important;flex-shrink:0;">{icon}</span><p class="insight-text"><span class="insight-bold">{ins["title"]}:</span> {ins["body"]}</p></div>', unsafe_allow_html=True)
-            else:
-                st.markdown(topic_data)
-
-            with st.expander("📄 Full Topic Analysis"):
-                st.markdown(topic_data)
+            st.markdown(beta_data)
+        with st.expander("⚖️ Full Judge Synthesis"):
+            st.markdown(final_report)
 
     else:
-        st.markdown('<span class="exec-badge" style="background:rgba(224,213,199,0.3)!important;color:#7a7a7a!important;border-color:#E0D5C7!important;">SYSTEM IDLE</span>', unsafe_allow_html=True)
-        st.markdown('<h1 style="font-size:30px;font-weight:700;font-family:Manrope,sans-serif;color:#b0a89e!important;margin-top:12px;">Awaiting Execution Protocol</h1>', unsafe_allow_html=True)
-        st.markdown('<p style="color:#b0a89e!important;">Enter a company name for full analysis, or type any topic for a quick intelligence brief.</p>', unsafe_allow_html=True)
+        # =================================================================
+        # TOPIC MODE — Tavily search + single LLM summary
+        # =================================================================
+        st.markdown(f'<div style="margin-bottom:16px;"><span class="exec-badge" style="background:rgba(245,171,65,0.1)!important;color:#F5AB41!important;border-color:rgba(245,171,65,0.3)!important;">TOPIC INTELLIGENCE</span><span class="task-id">TASK ID: #TI-{task_id}</span></div>', unsafe_allow_html=True)
+        st.markdown(f'<h1 style="font-size:30px;font-weight:700;font-family:Manrope,sans-serif;color:#419577!important;letter-spacing:-0.02em;line-height:38px;margin-bottom:16px;">Topic Brief: {company}</h1>', unsafe_allow_html=True)
+
+        with st.status(f"Searching global sources for: {company}...", expanded=True) as status:
+            st.write(">> SCANNING TAVILY KNOWLEDGE BASE...")
+            topic_data = run_topic_analysis(company)
+            status.update(label="TOPIC BRIEF COMPILED", state="complete")
+
+        st.markdown('<h2 class="insight-title" style="margin-top:24px;">Key Insights</h2>', unsafe_allow_html=True)
+        insights = parse_insights(topic_data)
+        if insights:
+            for ins in insights:
+                icon = "check_circle" if ins["sentiment"]=="positive" else "warning"
+                ic = "#419577" if ins["sentiment"]=="positive" else "#ec4242"
+                st.markdown(f'<div class="insight-item"><span class="material-symbols-outlined" style="color:{ic}!important;flex-shrink:0;">{icon}</span><p class="insight-text"><span class="insight-bold">{ins["title"]}:</span> {ins["body"]}</p></div>', unsafe_allow_html=True)
+        else:
+            st.markdown(topic_data)
+
+        with st.expander("📄 Full Topic Analysis"):
+            st.markdown(topic_data)
+
+else:
+    st.markdown('<span class="exec-badge" style="background:rgba(224,213,199,0.3)!important;color:#7a7a7a!important;border-color:#E0D5C7!important;">SYSTEM IDLE</span>', unsafe_allow_html=True)
+    st.markdown('<h1 style="font-size:30px;font-weight:700;font-family:Manrope,sans-serif;color:#b0a89e!important;margin-top:12px;">Awaiting Execution Protocol</h1>', unsafe_allow_html=True)
+    st.markdown('<p style="color:#b0a89e!important;">Enter a company name for full analysis, or type any topic for a quick intelligence brief.</p>', unsafe_allow_html=True)
