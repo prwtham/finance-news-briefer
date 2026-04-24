@@ -119,7 +119,7 @@ def fetch_pexels_image(query):
         resp = requests.get(
             "https://api.pexels.com/v1/search",
             headers={"Authorization": key},
-            params={"query": f"{query} finance market", "per_page": 1, "orientation": "landscape", "size": "small"},
+            params={"query": f"{query} finance market", "per_page": 1, "orientation": "landscape", "size": "medium"},
             timeout=5
         )
         if resp.status_code == 200:
@@ -127,7 +127,7 @@ def fetch_pexels_image(query):
             if photos:
                 p = photos[0]
                 return {
-                    "url": p["src"]["small"],
+                    "url": p["src"]["medium"],
                     "photographer": p.get("photographer", ""),
                     "photo_url": p.get("url", ""),
                 }
@@ -313,9 +313,9 @@ div[data-testid="stVerticalBlockBorderWrapper"]{background-color:#FFFFFF!importa
 .news-meta{font-size:10px;color:rgba(255,255,255,0.7)!important;margin-top:12px;font-weight:600;}
 
 /* Hero Section */
-.hero-container{height:60vh;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;margin-bottom:40px;}
-.hero-title{font-family:'Manrope',sans-serif;font-size:72px;font-weight:900;margin:0;padding:0;background:linear-gradient(135deg,#419577,#F5AB41);-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:-0.03em;line-height:1.1;}
-.hero-subtitle{color:#7a7a7a!important;font-size:16px;margin:20px 0 0 0;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;}
+.hero-container{height:40vh;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;margin-bottom:20px;margin-top: -20px;}
+.hero-title{font-family:'Manrope',sans-serif;font-size:64px;font-weight:900;margin:0;padding:0;background:linear-gradient(135deg,#419577,#F5AB41);-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:-0.03em;line-height:1.1;}
+.hero-subtitle{color:#7a7a7a!important;font-size:14px;margin:12px 0 0 0;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;}
 
 /* History */
 .hist-card{padding:12px;border-radius:8px;margin-bottom:12px;cursor:pointer;transition:all 0.2s;}
